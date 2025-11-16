@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Edit, Trash2, FileText, Users } from 'lucide-react';
+import { Plus, Edit, Trash2, FileText, Users, Eye, EyeOff, BarChart3 } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -122,6 +122,14 @@ export default function EventListPage() {
                   >
                     <Users size={16} className="mr-1" />
                     Registrations
+                  </Link>
+                  
+                  <Link
+                    to={`/admin/events/${event.id}/analytics`}
+                    className="btn btn-secondary"
+                  >
+                    <BarChart3 size={16} className="mr-1" />
+                    Analytics
                   </Link>
                   
                   <button

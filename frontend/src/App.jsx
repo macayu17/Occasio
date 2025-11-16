@@ -22,6 +22,7 @@ import CreateEventPage from './pages/admin/CreateEventPage';
 import EditEventPage from './pages/admin/EditEventPage';
 import FormBuilderPage from './pages/admin/FormBuilderPage';
 import RegistrationsPage from './pages/admin/RegistrationsPage';
+import AnalyticsPage from './pages/admin/AnalyticsPage';
 
 // Layout
 import PublicLayout from './layouts/PublicLayout';
@@ -57,6 +58,7 @@ function App() {
             <Route path="/admin/events/:id/edit" element={<EditEventPage />} />
             <Route path="/admin/events/:id/form" element={<FormBuilderPage />} />
             <Route path="/admin/events/:id/registrations" element={<RegistrationsPage />} />
+            <Route path="/admin/events/:id/analytics" element={<AnalyticsPage />} />
           </Route>
         </Routes>
       </Router>

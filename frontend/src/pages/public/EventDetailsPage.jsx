@@ -4,6 +4,7 @@ import { Calendar, MapPin, DollarSign, Users, ArrowLeft } from 'lucide-react';
 import api from '../../utils/api';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import ShareButton from '../../components/ShareButton';
 
 export default function EventDetailsPage() {
   const { id } = useParams();
