@@ -259,10 +259,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ISC
 
-## 👥 Support
-
-For support, email support@eventmanagement.com
-
 ---
-
-**Built with ❤️ for seamless event management**
