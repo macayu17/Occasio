@@ -122,33 +122,36 @@ export default function RegistrationPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="relative">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary-200 dark:border-primary-900"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-primary-600 absolute top-0"></div>
+        </div>
       </div>
     );
   }
 
   if (!form) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Registration form not available</h2>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Registration form not available</h2>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 py-12">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-xl shadow-sm p-8">
-          <h1 className="text-3xl font-bold mb-2">{event.title}</h1>
-          <p className="text-gray-600 mb-8">Please fill in your details to register</p>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-200 dark:border-gray-700">
+          <h1 className="text-3xl font-bold mb-2 gradient-text">{event.title}</h1>
+          <p className="text-gray-600 dark:text-gray-400 mb-8">Please fill in your details to register</p>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {form.schemaJson.fields.map((field) => (
               <div key={field.key}>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                   {field.label}
                   {field.required && <span className="text-red-500 ml-1">*</span>}
                 </label>
@@ -180,15 +183,15 @@ export default function RegistrationPage() {
                 )}
 
                 {errors[field.key] && (
-                  <p className="text-red-500 text-sm mt-1">This field is required</p>
+                  <p className="text-red-500 dark:text-red-400 text-sm mt-1">This field is required</p>
                 )}
               </div>
             ))}
 
-            <div className="bg-gray-50 p-4 rounded-lg">
+            <div className="bg-gradient-to-r from-primary-50 to-secondary-50 dark:from-primary-900/20 dark:to-secondary-900/20 p-6 rounded-xl border border-primary-200 dark:border-primary-800">
               <div className="flex justify-between items-center">
-                <span className="font-medium">Total Amount:</span>
-                <span className="text-2xl font-bold text-primary-600">
+                <span className="font-semibold text-gray-900 dark:text-white">Total Amount:</span>
+                <span className="text-3xl font-bold gradient-text">
                   {event.priceCents === 0
                     ? 'Free'
                     : `${event.currency} ${(event.priceCents / 100).toFixed(2)}`}
@@ -199,9 +202,17 @@ export default function RegistrationPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="btn btn-primary w-full py-3 text-lg disabled:opacity-50"
+              className="btn btn-primary w-full py-3 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {submitting ? 'Processing...' : event.priceCents === 0 ? 'Register' : 'Proceed to Payment'}
+              {submitting ? (
+                <span className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Processing...
+                </span>
+              ) : event.priceCents === 0 ? 'Register' : 'Proceed to Payment'}
             </button>
           </form>
         </div>

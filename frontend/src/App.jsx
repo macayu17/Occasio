@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
+import { useTheme } from './contexts/ThemeContext';
 
 // Public Pages
 import HomePage from './pages/public/HomePage';
@@ -30,10 +31,21 @@ import AdminLayout from './layouts/AdminLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
+  const { isDark } = useTheme();
+  
   return (
     <AuthProvider>
       <Router>
-        <Toaster position="top-right" />
+        <Toaster 
+          position="top-right"
+          toastOptions={{
+            className: '',
+            style: {
+              background: isDark ? '#1f2937' : '#fff',
+              color: isDark ? '#f9fafb' : '#111827',
+            },
+          }}
+        />
         <Routes>
           {/* Public Routes */}
           <Route element={<PublicLayout />}>

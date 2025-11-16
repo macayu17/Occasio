@@ -50,59 +50,85 @@ export default function EventListPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+      <div className="flex justify-center py-20">
+        <div className="relative">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary-200 dark:border-primary-900"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-primary-600 absolute top-0"></div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">My Events</h1>
-        <Link to="/admin/events/create" className="btn btn-primary">
+        <div>
+          <h1 className="text-4xl font-bold gradient-text mb-2">My Events</h1>
+          <p className="text-gray-600 dark:text-gray-400">Manage and track your events</p>
+        </div>
+        <Link to="/admin/events/create" className="btn btn-success">
           <Plus size={20} className="mr-2" />
           Create Event
         </Link>
       </div>
 
       {events.length === 0 ? (
-        <div className="card text-center py-12">
-          <p className="text-gray-500 mb-4">No events created yet</p>
-          <Link to="/admin/events/create" className="btn btn-primary">
+        <div className="card text-center py-16 border-2 border-dashed border-gray-300 dark:border-gray-700">
+          <div className="text-gray-400 dark:text-gray-600 mb-6">
+            <Plus size={64} className="mx-auto" />
+          </div>
+          <p className="text-gray-600 dark:text-gray-400 text-lg mb-6">No events created yet</p>
+          <Link to="/admin/events/create" className="btn btn-primary inline-flex items-center">
+            <Plus size={20} className="mr-2" />
             Create Your First Event
           </Link>
         </div>
       ) : (
         <div className="grid gap-6">
-          {events.map((event) => (
-            <div key={event.id} className="card">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {events.map((event, index) => (
+            <div 
+              key={event.id} 
+              className="card hover:shadow-2xl transform hover:-translate-y-1 animate-slide-up"
+              style={{ animationDelay: `${index * 50}ms` }}
+            >
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                 <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-xl font-bold">{event.title}</h3>
+                  <div className="flex items-center gap-3 mb-3">
+                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{event.title}</h3>
                     <span className={`badge ${event.published ? 'badge-success' : 'badge-warning'}`}>
-                      {event.published ? 'Published' : 'Draft'}
+                      {event.published ? '✓ Published' : '○ Draft'}
                     </span>
                   </div>
-                  <p className="text-gray-600 mb-2">{event.location}</p>
-                  <p className="text-sm text-gray-500">
-                    {format(new Date(event.startTime), 'PPP')}
-                  </p>
-                  <div className="flex gap-4 mt-2 text-sm text-gray-600">
-                    <span>{event._count?.registrations || 0} registrations</span>
-                    <span>
-                      {event.priceCents === 0
-                        ? 'Free'
-                        : `${event.currency} ${(event.priceCents / 100).toFixed(2)}`}
-                    </span>
+                  <div className="space-y-2">
+                    <p className="text-gray-600 dark:text-gray-400 flex items-center">
+                      <span className="font-medium mr-2">📍</span>
+                      {event.location}
+                    </p>
+                    <p className="text-gray-600 dark:text-gray-400 flex items-center">
+                      <span className="font-medium mr-2">📅</span>
+                      {format(new Date(event.startTime), 'PPP')}
+                    </p>
+                    <div className="flex gap-6 mt-3">
+                      <div className="bg-primary-50 dark:bg-primary-900/20 px-4 py-2 rounded-lg">
+                        <span className="text-sm font-semibold text-primary-700 dark:text-primary-300">
+                          {event._count?.registrations || 0} registrations
+                        </span>
+                      </div>
+                      <div className="bg-green-50 dark:bg-green-900/20 px-4 py-2 rounded-lg">
+                        <span className="text-sm font-semibold text-green-700 dark:text-green-300">
+                          {event.priceCents === 0
+                            ? '🎉 Free Event'
+                            : `💰 ${event.currency} ${(event.priceCents / 100).toFixed(2)}`}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
                   <Link
                     to={`/admin/events/${event.id}/edit`}
-                    className="btn btn-secondary"
+                    className="btn btn-secondary text-sm py-2 px-4"
                   >
                     <Edit size={16} className="mr-1" />
                     Edit
@@ -110,7 +136,7 @@ export default function EventListPage() {
                   
                   <Link
                     to={`/admin/events/${event.id}/form`}
-                    className="btn btn-secondary"
+                    className="btn btn-secondary text-sm py-2 px-4"
                   >
                     <FileText size={16} className="mr-1" />
                     Form
@@ -118,7 +144,7 @@ export default function EventListPage() {
                   
                   <Link
                     to={`/admin/events/${event.id}/registrations`}
-                    className="btn btn-secondary"
+                    className="btn btn-secondary text-sm py-2 px-4"
                   >
                     <Users size={16} className="mr-1" />
                     Registrations
@@ -126,7 +152,7 @@ export default function EventListPage() {
                   
                   <Link
                     to={`/admin/events/${event.id}/analytics`}
-                    className="btn btn-secondary"
+                    className="btn btn-secondary text-sm py-2 px-4"
                   >
                     <BarChart3 size={16} className="mr-1" />
                     Analytics
@@ -134,14 +160,16 @@ export default function EventListPage() {
                   
                   <button
                     onClick={() => togglePublish(event.id, event.published)}
-                    className="btn btn-secondary"
+                    className={`btn text-sm py-2 px-4 ${event.published ? 'btn-secondary' : 'btn-success'}`}
                   >
+                    {event.published ? <EyeOff size={16} className="mr-1" /> : <Eye size={16} className="mr-1" />}
                     {event.published ? 'Unpublish' : 'Publish'}
                   </button>
                   
                   <button
                     onClick={() => handleDelete(event.id)}
-                    className="btn btn-danger"
+                    className="btn btn-danger text-sm py-2 px-4"
+                    title="Delete event"
                   >
                     <Trash2 size={16} />
                   </button>
