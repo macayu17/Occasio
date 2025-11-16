@@ -226,15 +226,163 @@ The system uses the following main entities:
 
 ## 🚢 Deployment
 
-### Backend Deployment
-- Deploy to Railway, Render, or AWS EC2
-- Set up PostgreSQL and Redis instances
-- Configure environment variables
-- Set up AWS S3 bucket
+### Deploying to Vercel
 
-### Frontend Deployment
-- Deploy to Vercel or Netlify
-- Update API URL in environment variables
+#### Option 1: Deploy Frontend and Backend Separately (Recommended)
+
+**Backend Deployment (Railway/Render):**
+1. Create account on Railway (https://railway.app) or Render (https://render.com)
+2. Create new project and connect GitHub repository
+3. Select backend folder
+4. Add environment variables from `.env`
+5. Add PostgreSQL and Redis services
+6. Deploy and get backend URL
+
+**Frontend Deployment (Vercel):**
+1. Install Vercel CLI: `npm install -g vercel`
+2. Navigate to frontend folder: `cd frontend`
+3. Run: `vercel`
+4. Follow prompts to link project
+5. Add environment variables:
+   ```bash
+   vercel env add VITE_API_URL production
+   # Enter your backend URL (e.g., https://your-app.railway.app/api)
+   
+   vercel env add VITE_RAZORPAY_KEY_ID production
+   # Enter your Razorpay key
+   ```
+6. Deploy: `vercel --prod`
+
+#### Option 2: Deploy as Monorepo (Advanced)
+
+**Prerequisites:**
+- PostgreSQL database (Neon, Supabase, or Railway)
+- Redis instance (Upstash or Railway)
+- AWS S3 bucket or Vercel Blob storage
+
+**Steps:**
+
+1. **Install Vercel CLI**
+```bash
+npm install -g vercel
+```
+
+2. **Configure Backend for Vercel**
+
+The `backend/vercel.json` is already configured. Update `backend/package.json` scripts:
+```json
+{
+  "scripts": {
+    "vercel-build": "prisma generate && prisma migrate deploy"
+  }
+}
+```
+
+3. **Deploy Backend First**
+```bash
+cd backend
+vercel
+
+# Add environment variables
+vercel env add DATABASE_URL production
+vercel env add JWT_SECRET production
+vercel env add RAZORPAY_KEY_ID production
+vercel env add RAZORPAY_KEY_SECRET production
+vercel env add SMTP_HOST production
+vercel env add SMTP_PORT production
+vercel env add SMTP_USER production
+vercel env add SMTP_PASS production
+vercel env add EMAIL_FROM production
+vercel env add REDIS_HOST production
+vercel env add REDIS_PORT production
+vercel env add AWS_ACCESS_KEY_ID production
+vercel env add AWS_SECRET_ACCESS_KEY production
+vercel env add S3_BUCKET_NAME production
+vercel env add QR_SECRET_KEY production
+vercel env add FRONTEND_URL production
+
+# Deploy to production
+vercel --prod
+```
+
+4. **Deploy Frontend**
+```bash
+cd ../frontend
+vercel
+
+# Add environment variables
+vercel env add VITE_API_URL production
+# Use your backend Vercel URL: https://your-backend.vercel.app/api
+
+vercel env add VITE_RAZORPAY_KEY_ID production
+
+# Deploy to production
+vercel --prod
+```
+
+5. **Update CORS Settings**
+
+After deployment, update backend's CORS to allow your frontend domain in `backend/src/server.js`.
+
+### Alternative: Deploy Backend to Railway
+
+**Railway is better for backend with Redis/PostgreSQL:**
+
+1. Create Railway account: https://railway.app
+2. New Project → Deploy from GitHub
+3. Add PostgreSQL service
+4. Add Redis service
+5. Configure environment variables
+6. Deploy backend
+7. Get backend URL and use in frontend deployment
+
+### Database Options
+
+**For Production PostgreSQL:**
+- **Neon** (Free tier): https://neon.tech
+- **Supabase** (Free tier): https://supabase.com
+- **Railway** (Paid): Built-in PostgreSQL
+
+**For Production Redis:**
+- **Upstash** (Free tier): https://upstash.com
+- **Railway** (Paid): Built-in Redis
+
+### Environment Setup Checklist
+
+- [ ] PostgreSQL database provisioned
+- [ ] Redis instance provisioned
+- [ ] AWS S3 bucket created (or use Vercel Blob)
+- [ ] Razorpay account and keys
+- [ ] SMTP credentials (Gmail App Password)
+- [ ] All environment variables added
+- [ ] Database migrations run
+- [ ] CORS configured
+- [ ] Webhook URLs updated in Razorpay dashboard
+
+### Post-Deployment
+
+1. **Test Payment Flow**: Make test payment with Razorpay test keys
+2. **Configure Webhooks**: Add your backend webhook URL in Razorpay dashboard
+3. **Test Email**: Verify ticket delivery emails work
+4. **Monitor Logs**: Check Vercel/Railway logs for errors
+5. **Set up Monitoring**: Use Vercel Analytics or Sentry
+
+### Troubleshooting Deployment
+
+**Serverless Function Timeout:**
+- Vercel has 10s limit on Hobby plan
+- Move background jobs (PDF generation, emails) to separate worker
+- Consider upgrading to Pro plan or use Railway for backend
+
+**Database Connection Issues:**
+- Ensure connection pooling is enabled
+- Use `?connection_limit=10` in DATABASE_URL
+- Check if database allows connections from Vercel IPs
+
+**Redis Connection Issues:**
+- Upstash Redis works well with Vercel
+- Ensure Redis URL format is correct
+- Check Redis connection limits
 
 ## 📝 Development Roadmap
 
