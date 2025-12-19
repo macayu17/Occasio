@@ -1,8 +1,16 @@
 import crypto from 'crypto';
 
+// Default secret key if not configured - CHANGE IN PRODUCTION!
+const QR_SECRET = process.env.QR_SECRET_KEY || 'default-qr-secret-key-change-me';
+
 export function generateQRPayload(data) {
+  // ticketId is required!
+  if (!data.ticketId) {
+    throw new Error('ticketId is required for QR payload generation');
+  }
+
   const payload = {
-    ticketId: data.ticketId || crypto.randomUUID(),
+    ticketId: data.ticketId,
     eventId: data.eventId,
     orderId: data.orderId,
     registrationId: data.registrationId,
@@ -11,7 +19,7 @@ export function generateQRPayload(data) {
 
   // Generate HMAC signature
   const signature = generateQRSignature(payload);
-  
+
   return {
     ...payload,
     sig: signature
@@ -27,19 +35,36 @@ export function generateQRSignature(payload) {
   });
 
   return crypto
-    .createHmac('sha256', process.env.QR_SECRET_KEY)
+    .createHmac('sha256', QR_SECRET)
     .update(data)
     .digest('hex');
 }
 
 export function verifyQRSignature(payload) {
+  // If no signature provided, fail
   if (!payload.sig) {
+    console.log('QR Verification: No signature in payload');
     return false;
   }
 
-  const expectedSignature = generateQRSignature(payload);
-  return crypto.timingSafeEqual(
-    Buffer.from(payload.sig),
-    Buffer.from(expectedSignature)
-  );
+  try {
+    const expectedSignature = generateQRSignature(payload);
+
+    // Handle different signature lengths
+    if (payload.sig.length !== expectedSignature.length) {
+      console.log('QR Verification: Signature length mismatch');
+      return false;
+    }
+
+    const isValid = crypto.timingSafeEqual(
+      Buffer.from(payload.sig),
+      Buffer.from(expectedSignature)
+    );
+
+    console.log('QR Verification:', isValid ? 'Valid' : 'Invalid signature');
+    return isValid;
+  } catch (error) {
+    console.error('QR Verification error:', error.message);
+    return false;
+  }
 }

@@ -4,81 +4,76 @@
 
 @layer base {
   body {
-    @apply bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300;
+    /* Premium Dark Theme Base */
+    @apply bg-[#09090b] text-[#fafafa] antialiased select-none;
   }
 
-  * {
-    @apply scroll-smooth;
-  }
-
+  /* Custom Scrollbar for Dark Theme */
   ::-webkit-scrollbar {
-    @apply w-2 h-2;
+    @apply w-1.5 h-1.5;
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-gray-100 dark:bg-gray-800;
+    @apply bg-transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-gray-300 dark:bg-gray-600 rounded-full hover:bg-gray-400 dark:hover:bg-gray-500;
+    @apply bg-[#27272a] rounded-full hover:bg-[#3f3f46] transition-colors;
   }
 }
 
 @layer components {
+
+  /* Minimal Button System */
   .btn {
-    @apply px-6 py-3 rounded-xl font-semibold transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 transform hover:scale-105 active:scale-95 shadow-md hover:shadow-lg;
+    @apply px-5 py-2.5 rounded-xl font-medium transition-all duration-200 active:scale-95 flex items-center justify-center gap-2;
   }
 
   .btn-primary {
-    @apply bg-gradient-to-r from-primary-600 to-secondary-500 text-white hover:from-primary-700 hover:to-secondary-600 focus:ring-primary-500 shadow-primary-500/30;
+    @apply bg-[#E23744] text-white hover:bg-[#d12c39] shadow-lg shadow-red-900/20 hover:shadow-red-900/40;
   }
 
   .btn-secondary {
-    @apply bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 focus:ring-gray-400;
+    @apply bg-[#27272a] text-white hover:bg-[#3f3f46] border border-white/5;
   }
 
-  .btn-danger {
-    @apply bg-gradient-to-r from-red-600 to-pink-600 text-white hover:from-red-700 hover:to-pink-700 focus:ring-red-500 shadow-red-500/30;
+  .btn-ghost {
+    @apply bg-transparent text-[#a1a1aa] hover:text-white hover:bg-white/5;
   }
 
-  .btn-success {
-    @apply bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 focus:ring-green-500 shadow-green-500/30;
-  }
-
-  .input {
-    @apply w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-primary-400 focus:border-transparent transition-all placeholder-gray-400 dark:placeholder-gray-500;
-  }
-
+  /* Premium Card System */
   .card {
-    @apply bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 transition-all hover:shadow-xl;
+    @apply bg-[#18181b] border border-white/5 rounded-2xl p-5 hover:border-white/10 transition-colors;
   }
 
+  .glass-nav {
+    @apply bg-[#09090b]/60 backdrop-blur-md border-b border-white/5 supports-[backdrop-filter]:bg-[#09090b]/30;
+  }
+
+  .glass-card {
+    @apply bg-[#18181b]/40 backdrop-blur-xl border border-white/10 shadow-2xl;
+  }
+
+  /* Form Elements */
+  .input {
+    @apply w-full bg-[#18181b] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-[#71717a] focus:outline-none focus:border-[#E23744]/70 focus:ring-1 focus:ring-[#E23744]/70 transition-all;
+  }
+
+  /* Badges */
   .badge {
-    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold shadow-sm;
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium;
   }
 
   .badge-success {
-    @apply bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border border-green-200 dark:border-green-800;
+    @apply bg-emerald-500/10 text-emerald-400 border border-emerald-500/20;
   }
 
   .badge-warning {
-    @apply bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800;
+    @apply bg-amber-500/10 text-amber-400 border border-amber-500/20;
   }
 
-  .badge-danger {
-    @apply bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400 border border-red-200 dark:border-red-800;
-  }
-
-  .badge-info {
-    @apply bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 border border-blue-200 dark:border-blue-800;
-  }
-
-  .gradient-text {
-    @apply bg-gradient-to-r from-primary-600 to-secondary-500 dark:from-primary-400 dark:to-secondary-400 bg-clip-text text-transparent;
-  }
-
-  .glass {
-    @apply bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border border-gray-200 dark:border-gray-700;
+  .badge-neutral {
+    @apply bg-white/5 text-gray-400 border border-white/5;
   }
 }
 

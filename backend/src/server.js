@@ -11,6 +11,7 @@ import adminRoutes from './routes/admin.routes.js';
 import registrationRoutes from './routes/registration.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import ticketRoutes from './routes/ticket.routes.js';
+import waitlistRoutes from './routes/waitlist.routes.js';
 
 dotenv.config();
 
@@ -43,11 +44,15 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(limiter);
 
+// Serve uploaded files
+app.use('/uploads', express.static('uploads'));
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api', registrationRoutes);
+app.use('/api', waitlistRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/tickets', ticketRoutes);
 

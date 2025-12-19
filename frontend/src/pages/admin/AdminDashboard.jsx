@@ -25,7 +25,6 @@ export default function AdminDashboard() {
 
       setRecentEvents(events.slice(0, 5));
 
-      // Calculate stats
       const totalRegistrations = events.reduce(
         (sum, event) => sum + (event._count?.registrations || 0),
         0
@@ -52,23 +51,22 @@ export default function AdminDashboard() {
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <div className="relative">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary-200 dark:border-primary-900"></div>
-          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-primary-600 absolute top-0"></div>
-        </div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-[#E23744] border-r-2 border-[#E23744]/30"></div>
       </div>
     );
   }
 
   return (
-    <div className="animate-fade-in">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold gradient-text mb-2">Dashboard</h1>
-        <p className="text-gray-600 dark:text-gray-400 text-lg">Welcome back! Here's an overview of your events.</p>
+    <div className="space-y-8 animate-fade-in">
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-white mb-2">My Overview</h1>
+          <p className="text-gray-400">Welcome to your command center.</p>
+        </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           icon={Calendar}
           label="Total Events"
@@ -77,13 +75,13 @@ export default function AdminDashboard() {
         />
         <StatCard
           icon={TrendingUp}
-          label="Published Events"
+          label="Published"
           value={stats.publishedEvents}
           color="green"
         />
         <StatCard
           icon={Users}
-          label="Total Registrations"
+          label="Registrations"
           value={stats.totalRegistrations}
           color="purple"
         />
@@ -96,41 +94,44 @@ export default function AdminDashboard() {
       </div>
 
       {/* Recent Events */}
-      <div className="card">
+      <div className="glass-card p-6 rounded-2xl bg-[#18181b]/60 border border-white/5">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Recent Events</h2>
-          <Link to="/admin/events" className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-semibold inline-flex items-center">
-            View All →
+          <h2 className="text-xl font-bold text-white">Recent Events</h2>
+          <Link to="/admin/events" className="text-[#E23744] hover:text-[#E23744]/80 text-sm font-medium transition-colors">
+            View All Events
           </Link>
         </div>
 
         {recentEvents.length === 0 ? (
           <div className="text-center py-12">
-            <Calendar className="mx-auto text-gray-400 dark:text-gray-600 mb-4" size={48} />
-            <p className="text-gray-500 dark:text-gray-400 mb-4 text-lg">No events yet</p>
-            <Link to="/admin/events/create" className="btn btn-primary">
-              Create Your First Event
+            <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Calendar className="text-gray-500" size={24} />
+            </div>
+            <p className="text-gray-400 mb-4">No events created yet</p>
+            <Link to="/admin/events/create" className="btn btn-primary inline-flex">
+              Create Event
             </Link>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {recentEvents.map((event, index) => (
               <div
                 key={event.id}
-                className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all hover:shadow-md animate-slide-up"
-                style={{animationDelay: `${index * 50}ms`}}
+                className="flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-colors border border-transparent hover:border-white/5 group"
               >
                 <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900 dark:text-white mb-1">{event.title}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{event.location}</p>
+                  <h3 className="font-semibold text-white group-hover:text-[#E23744] transition-colors mb-1">{event.title}</h3>
+                  <div className="flex items-center text-sm text-gray-500 gap-4">
+                    <span>{event.location}</span>
+                    <span>•</span>
+                    <span className={event.published ? 'text-green-500' : 'text-yellow-500'}>
+                      {event.published ? 'Published' : 'Draft'}
+                    </span>
+                  </div>
                 </div>
-                <div className="text-right ml-4">
-                  <span className={`badge ${event.published ? 'badge-success' : 'badge-warning'} mb-2`}>
-                    {event.published ? 'Published' : 'Draft'}
-                  </span>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    {event._count?.registrations || 0} registrations
-                  </p>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-gray-200">{event._count?.registrations || 0}</div>
+                  <div className="text-xs text-gray-500 uppercase tracking-wider">Sold</div>
                 </div>
               </div>
             ))}
@@ -142,38 +143,22 @@ export default function AdminDashboard() {
 }
 
 function StatCard({ icon: Icon, label, value, color }) {
+  // Simplistic color map consistent with dark theme
   const colors = {
-    blue: 'from-blue-500 to-cyan-500',
-    green: 'from-green-500 to-emerald-500',
-    purple: 'from-purple-500 to-pink-500',
-    yellow: 'from-yellow-500 to-orange-500'
-  };
-
-  const iconBg = {
-    blue: 'bg-blue-100 dark:bg-blue-900/30',
-    green: 'bg-green-100 dark:bg-green-900/30',
-    purple: 'bg-purple-100 dark:bg-purple-900/30',
-    yellow: 'bg-yellow-100 dark:bg-yellow-900/30'
-  };
-
-  const iconColor = {
-    blue: 'text-blue-600 dark:text-blue-400',
-    green: 'text-green-600 dark:text-green-400',
-    purple: 'text-purple-600 dark:text-purple-400',
-    yellow: 'text-yellow-600 dark:text-yellow-400'
+    blue: 'text-blue-500 bg-blue-500/10',
+    green: 'text-emerald-500 bg-emerald-500/10',
+    purple: 'text-purple-500 bg-purple-500/10',
+    yellow: 'text-yellow-500 bg-yellow-500/10'
   };
 
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl transition-all transform hover:-translate-y-1">
-      <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${colors[color]} opacity-10 rounded-full -mr-16 -mt-16`}></div>
-      <div className="relative flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">{label}</p>
-          <p className="text-3xl font-bold text-gray-900 dark:text-white">{value}</p>
-        </div>
-        <div className={`${iconBg[color]} p-4 rounded-xl`}>
-          <Icon size={28} className={iconColor[color]} />
-        </div>
+    <div className="glass-card p-6 rounded-2xl bg-[#18181b]/60 border border-white/5 flex items-center justify-between">
+      <div>
+        <p className="text-sm font-medium text-gray-400 mb-1">{label}</p>
+        <p className="text-2xl font-bold text-white">{value}</p>
+      </div>
+      <div className={`p-3 rounded-xl ${colors[color]}`}>
+        <Icon size={24} />
       </div>
     </div>
   );

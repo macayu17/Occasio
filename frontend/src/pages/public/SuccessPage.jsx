@@ -1,7 +1,9 @@
-import { Link } from 'react-router-dom';
-import { CheckCircle, Mail } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { CheckCircle, Mail, Calendar } from 'lucide-react';
 
 export default function SuccessPage() {
+  const { state } = useLocation();
+
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
       <div className="max-w-md w-full">
@@ -22,7 +24,7 @@ export default function SuccessPage() {
                   Check your email
                 </p>
                 <p className="text-sm text-blue-700 mt-1">
-                  We've sent your event ticket to your registered email address. 
+                  We've sent your event ticket to your registered email address.
                   Please check your inbox (and spam folder) for the ticket with QR code.
                 </p>
               </div>
@@ -34,6 +36,15 @@ export default function SuccessPage() {
           </p>
 
           <div className="space-y-3">
+            {state?.eventId && (
+              <a
+                href={`/api/events/${state.eventId}/calendar`}
+                className="w-full py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-2 font-medium"
+              >
+                <Calendar size={20} />
+                Add to Calendar
+              </a>
+            )}
             <Link to="/" className="btn btn-primary w-full">
               Browse More Events
             </Link>

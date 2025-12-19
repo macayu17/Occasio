@@ -18,19 +18,27 @@ export async function generateTicketPDF(order) {
     });
 
     if (!ticket) {
-      // Generate QR payload
+      // First create the ticket to get the actual ID
+      ticket = await prisma.ticket.create({
+        data: {
+          orderId: order.id,
+          qrPayload: '{}', // Placeholder, will update after
+          validUntil: order.registration.event.endTime
+        }
+      });
+
+      // Now generate QR payload with the actual ticket ID
       const qrPayload = generateQRPayload({
+        ticketId: ticket.id, // Use the actual ticket ID!
         orderId: order.id,
         eventId: order.registration.event.id,
         registrationId: order.registrationId
       });
 
-      ticket = await prisma.ticket.create({
-        data: {
-          orderId: order.id,
-          qrPayload: JSON.stringify(qrPayload),
-          validUntil: order.registration.event.endTime
-        }
+      // Update ticket with the correct QR payload
+      ticket = await prisma.ticket.update({
+        where: { id: ticket.id },
+        data: { qrPayload: JSON.stringify(qrPayload) }
       });
     }
 

@@ -56,8 +56,9 @@ uniform vec3 lineGradient[8];
 uniform int lineGradientCount;
 
 const vec3 BLACK = vec3(0.0);
-const vec3 PINK  = vec3(233.0, 71.0, 245.0) / 255.0;
-const vec3 BLUE  = vec3(47.0,  75.0, 162.0) / 255.0;
+const vec3 EMERALD = vec3(16.0, 185.0, 129.0) / 255.0;
+const vec3 CORAL = vec3(249.0, 115.0, 22.0) / 255.0;
+const vec3 TEAL = vec3(20.0, 184.0, 166.0) / 255.0;
 
 mat2 rotate(float r) {
   return mat2(cos(r), sin(r), -sin(r), cos(r));
@@ -69,9 +70,9 @@ vec3 background_color(vec2 uv) {
   float y = sin(uv.x - 0.2) * 0.3 - 0.1;
   float m = uv.y - y;
 
-  col += mix(BLUE, BLACK, smoothstep(0.0, 1.0, abs(m)));
-  col += mix(PINK, BLACK, smoothstep(0.0, 1.0, abs(m - 0.8)));
-  return col * 0.5;
+  col += mix(TEAL, BLACK, smoothstep(0.0, 1.0, abs(m)));
+  col += mix(CORAL, BLACK, smoothstep(0.0, 1.0, abs(m - 0.8)));
+  return col * 0.6;
 }
 
 vec3 getLineColor(float t, vec3 baseColor) {

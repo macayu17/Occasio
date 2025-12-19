@@ -77,7 +77,7 @@ router.post('/events',
 router.put('/events/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // Verify ownership
     const event = await prisma.event.findUnique({
       where: { id }
@@ -116,7 +116,7 @@ router.put('/events/:id', async (req, res) => {
 router.delete('/events/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const event = await prisma.event.findUnique({
       where: { id }
     });
@@ -144,7 +144,7 @@ router.delete('/events/:id', async (req, res) => {
 router.post('/events/:id/poster-upload', upload.single('poster'), async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -218,8 +218,8 @@ router.post('/events/:id/form', async (req, res) => {
 // Get all events for organizer
 router.get('/events', async (req, res) => {
   try {
-    const where = req.user.role === 'ADMIN' 
-      ? {} 
+    const where = req.user.role === 'ADMIN'
+      ? {}
       : { organizerId: req.user.id };
 
     const events = await prisma.event.findMany({
@@ -250,7 +250,7 @@ router.get('/events', async (req, res) => {
 router.get('/events/:id/registrations', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const event = await prisma.event.findUnique({
       where: { id }
     });
@@ -282,11 +282,41 @@ router.get('/events/:id/registrations', async (req, res) => {
   }
 });
 
+// Delete a registration (and associated orders/tickets)
+router.delete('/registrations/:regId', async (req, res) => {
+  try {
+    const { regId } = req.params;
+
+    const registration = await prisma.registration.findUnique({
+      where: { id: regId },
+      include: { event: true }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Registration not found' });
+    }
+
+    if (registration.event.organizerId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Delete registration (cascades to orders and tickets)
+    await prisma.registration.delete({
+      where: { id: regId }
+    });
+
+    res.json({ message: 'Registration deleted successfully' });
+  } catch (error) {
+    console.error('Delete registration error:', error);
+    res.status(500).json({ error: 'Failed to delete registration' });
+  }
+});
+
 // Get analytics for an event
 router.get('/events/:id/analytics', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const event = await prisma.event.findUnique({
       where: { id }
     });

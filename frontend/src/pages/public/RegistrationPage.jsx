@@ -11,7 +11,7 @@ export default function RegistrationPage() {
   const [form, setForm] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  
+
   const { register, handleSubmit, formState: { errors } } = useForm();
 
   useEffect(() => {
@@ -24,7 +24,7 @@ export default function RegistrationPage() {
         api.get(`/events/${id}`),
         api.get(`/events/${id}/form`)
       ]);
-      
+
       setEvent(eventRes.data);
       setForm(formRes.data);
     } catch (error) {
@@ -42,7 +42,7 @@ export default function RegistrationPage() {
 
   const onSubmit = async (data) => {
     setSubmitting(true);
-    
+
     try {
       // Register for event
       const regResponse = await api.post(`/events/${id}/register`, {
@@ -53,7 +53,7 @@ export default function RegistrationPage() {
 
       if (!requiresPayment) {
         toast.success('Registration successful!');
-        navigate('/success');
+        navigate('/success', { state: { eventId: event.id } });
         return;
       }
 
@@ -86,9 +86,9 @@ export default function RegistrationPage() {
               razorpay_order_id: response.razorpay_order_id,
               razorpay_signature: response.razorpay_signature
             });
-            
+
             toast.success('Payment successful! Check your email for the ticket.');
-            navigate('/success');
+            navigate('/success', { state: { eventId: event.id } });
           } catch (error) {
             console.error('Payment verification error:', error);
             toast.error('Payment completed but verification failed. Please contact support.');

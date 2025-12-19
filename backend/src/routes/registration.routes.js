@@ -48,12 +48,12 @@ router.post('/events/:id/register', async (req, res) => {
 
     // Validate form response
     const validate = ajv.compile(convertFormSchemaToAjv(formSchema));
-    
+
     if (!validate(formResponse)) {
       console.error('Form validation failed:', validate.errors);
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Invalid form data',
-        details: validate.errors 
+        details: validate.errors
       });
     }
 
@@ -85,8 +85,10 @@ router.post('/events/:id/register', async (req, res) => {
       }
     });
 
-    // If free event, mark as paid immediately
-    if (event.priceCents === 0) {
+    // If free event or RSVP, mark as paid/confirmed immediately
+    if (event.priceCents === 0 || event.type === 'RSVP') {
+      const regStatus = event.type === 'RSVP' ? 'CONFIRMED' : 'PAID';
+
       await prisma.order.update({
         where: { id: order.id },
         data: { status: 'PAID' }
@@ -94,7 +96,7 @@ router.post('/events/:id/register', async (req, res) => {
 
       await prisma.registration.update({
         where: { id: registration.id },
-        data: { status: 'PAID' }
+        data: { status: regStatus }
       });
 
       // Generate ticket
@@ -118,7 +120,7 @@ router.post('/events/:id/register', async (req, res) => {
       message: error.message,
       stack: error.stack
     });
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Registration failed',
       message: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -239,7 +241,7 @@ function convertFormSchemaToAjv(formSchema) {
 
   formSchema.fields.forEach(field => {
     let type = 'string';
-    
+
     switch (field.type) {
       case 'email':
         properties[field.key] = { type: 'string', format: 'email' };

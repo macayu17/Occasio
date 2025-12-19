@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Download, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Download, CheckCircle, XCircle, Clock, Trash2 } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -28,6 +28,20 @@ export default function RegistrationsPage() {
       toast.error('Failed to fetch registrations');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const deleteRegistration = async (regId, attendeeName) => {
+    if (!window.confirm(`Delete registration for "${attendeeName || 'this attendee'}"? This will also delete their ticket.`)) {
+      return;
+    }
+
+    try {
+      await api.delete(`/admin/registrations/${regId}`);
+      toast.success('Registration deleted successfully');
+      fetchData(); // Refresh the list
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to delete registration');
     }
   };
 
@@ -129,6 +143,7 @@ export default function RegistrationsPage() {
                   <th className="text-left py-3 px-4 font-semibold">Date</th>
                   <th className="text-left py-3 px-4 font-semibold">Ticket</th>
                   <th className="text-left py-3 px-4 font-semibold">Check-in</th>
+                  <th className="text-left py-3 px-4 font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -178,6 +193,15 @@ export default function RegistrationsPage() {
                       ) : (
                         <span className="text-gray-400 text-sm">-</span>
                       )}
+                    </td>
+                    <td className="py-3 px-4">
+                      <button
+                        onClick={() => deleteRegistration(registration.id, registration.formResponse.name)}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded transition-colors"
+                        title="Delete registration"
+                      >
+                        <Trash2 size={18} />
+                      </button>
                     </td>
                   </tr>
                 ))}

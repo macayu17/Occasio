@@ -1,10 +1,11 @@
 import { PrismaClient } from '@prisma/client';
 
+// For Neon serverless - simple retry wrapper
 const prisma = new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+  log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
 });
 
-// Test database connection with retry
+// Test connection on startup with retry
 const connectWithRetry = async (retries = 5, delay = 2000) => {
   for (let i = 0; i < retries; i++) {
     try {
@@ -18,7 +19,7 @@ const connectWithRetry = async (retries = 5, delay = 2000) => {
         await new Promise(resolve => setTimeout(resolve, delay));
       } else {
         console.error('❌ Database connection failed after all retries');
-        process.exit(1);
+        // Don't exit - let the app continue and retry on individual queries
       }
     }
   }
