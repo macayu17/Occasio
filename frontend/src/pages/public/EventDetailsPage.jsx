@@ -6,6 +6,7 @@ import api from '../../utils/api';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import ShareButton from '../../components/ShareButton';
+import ReviewsSection from '../../components/ReviewsSection';
 
 export default function EventDetailsPage() {
   const { id } = useParams();
@@ -114,7 +115,11 @@ export default function EventDetailsPage() {
                 <p className="text-white font-medium">{event.organizer.name}</p>
               </div>
             </div>
+
+            {/* Reviews */}
+            <ReviewsSection eventId={event.id} />
           </div>
+
 
           {/* Sidebar (Right) */}
           <div className="lg:col-span-1">
@@ -238,6 +243,6 @@ export default function EventDetailsPage() {
           </div>
         </div>
       </div>
-    </div>
+    </div >
   );
 }

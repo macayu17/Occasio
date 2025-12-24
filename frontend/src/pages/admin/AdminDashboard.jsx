@@ -4,7 +4,10 @@ import { Calendar, Users, DollarSign, TrendingUp } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 
+import BroadcastModal from '../../components/BroadcastModal';
+
 export default function AdminDashboard() {
+  const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
   const [stats, setStats] = useState({
     totalEvents: 0,
     publishedEvents: 0,
@@ -63,7 +66,15 @@ export default function AdminDashboard() {
           <h1 className="text-3xl font-bold text-white mb-2">My Overview</h1>
           <p className="text-gray-400">Welcome to your command center.</p>
         </div>
+        <button
+          onClick={() => setIsBroadcastOpen(true)}
+          className="btn btn-primary"
+        >
+          📢 Broadcast Email
+        </button>
       </div>
+
+      <BroadcastModal isOpen={isBroadcastOpen} onClose={() => setIsBroadcastOpen(false)} />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

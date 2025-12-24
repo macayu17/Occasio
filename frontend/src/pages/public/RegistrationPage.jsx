@@ -10,7 +10,11 @@ export default function RegistrationPage() {
   const [event, setEvent] = useState(null);
   const [form, setForm] = useState(null);
   const [loading, setLoading] = useState(true);
+
   const [submitting, setSubmitting] = useState(false);
+  const [discountCode, setDiscountCode] = useState('');
+  const [appliedDiscount, setAppliedDiscount] = useState(null);
+  const [discountMsg, setDiscountMsg] = useState('');
 
   const { register, handleSubmit, formState: { errors } } = useForm();
 
@@ -40,13 +44,41 @@ export default function RegistrationPage() {
     }
   };
 
+  const handleApplyDiscount = async () => {
+    if (!discountCode) return;
+    try {
+      const res = await api.post('/discounts/validate', {
+        eventId: id,
+        code: discountCode
+      });
+      setAppliedDiscount(res.data);
+      setDiscountMsg({ type: 'success', text: `Applied: ${res.data.code}` });
+    } catch (error) {
+      setAppliedDiscount(null);
+      setDiscountMsg({ type: 'error', text: error.response?.data?.error || 'Invalid code' });
+    }
+  };
+
+  const calculateTotal = () => {
+    if (!event) return 0;
+    if (!appliedDiscount) return event.priceCents / 100;
+
+    let original = event.priceCents / 100;
+    if (appliedDiscount.type === 'PERCENTAGE') {
+      return Math.max(0, original * (1 - appliedDiscount.amount / 100));
+    } else {
+      return Math.max(0, original - appliedDiscount.amount);
+    }
+  };
+
   const onSubmit = async (data) => {
     setSubmitting(true);
 
     try {
       // Register for event
       const regResponse = await api.post(`/events/${id}/register`, {
-        formResponse: data
+        formResponse: data,
+        discountCode: appliedDiscount ? appliedDiscount.code : undefined
       });
 
       const { order, requiresPayment } = regResponse.data;
@@ -192,12 +224,43 @@ export default function RegistrationPage() {
               <div className="flex justify-between items-center">
                 <span className="font-semibold text-gray-900 dark:text-white">Total Amount:</span>
                 <span className="text-3xl font-bold gradient-text">
-                  {event.priceCents === 0
+                  {calculateTotal() === 0
                     ? 'Free'
-                    : `${event.currency} ${(event.priceCents / 100).toFixed(2)}`}
+                    : `${event.currency} ${calculateTotal().toFixed(2)}`}
                 </span>
               </div>
             </div>
+
+            {/* Discount Code Section */}
+            {event.priceCents > 0 && (
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">Promo Code</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={discountCode}
+                    onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
+                    className="input flex-1 uppercase"
+                    placeholder="ENTER CODE"
+                    disabled={!!appliedDiscount}
+                  />
+                  {appliedDiscount ? (
+                    <button type="button" onClick={() => { setAppliedDiscount(null); setDiscountCode(''); setDiscountMsg(''); }} className="btn btn-secondary text-red-500">
+                      Remove
+                    </button>
+                  ) : (
+                    <button type="button" onClick={handleApplyDiscount} className="btn btn-secondary">
+                      Apply
+                    </button>
+                  )}
+                </div>
+                {discountMsg && (
+                  <p className={`text-sm ${discountMsg.type === 'success' ? 'text-green-500' : 'text-red-500'}`}>
+                    {discountMsg.text}
+                  </p>
+                )}
+              </div>
+            )}
 
             <button
               type="submit"
@@ -212,7 +275,7 @@ export default function RegistrationPage() {
                   </svg>
                   Processing...
                 </span>
-              ) : event.priceCents === 0 ? 'Register' : 'Proceed to Payment'}
+              ) : (calculateTotal() === 0 ? 'Register Free' : `Proceed to Payment`)}
             </button>
           </form>
         </div>

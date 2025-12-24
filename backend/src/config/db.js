@@ -1,8 +1,18 @@
 import { PrismaClient } from '@prisma/client';
 
-// For Neon serverless - simple retry wrapper
+// For Neon/Postgres free tier - strict connection pooling
+const connectionUrl = process.env.DATABASE_URL;
+const withLimit = connectionUrl && !connectionUrl.includes('connection_limit')
+  ? `${connectionUrl}${connectionUrl.includes('?') ? '&' : '?'}connection_limit=5`
+  : connectionUrl;
+
 const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+  datasources: {
+    db: {
+      url: withLimit,
+    },
+  },
 });
 
 // Test connection on startup with retry

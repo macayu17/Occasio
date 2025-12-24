@@ -14,7 +14,7 @@ addFormats(ajv);
 router.post('/events/:id/register', async (req, res) => {
   try {
     const { id } = req.params;
-    const { formResponse } = req.body;
+    const { formResponse, discountCode } = req.body;
 
     // Get event and form
     const event = await prisma.event.findUnique({
@@ -74,19 +74,45 @@ router.post('/events/:id/register', async (req, res) => {
       }
     });
 
+    // Calculate Amount & Validate Discount
+    let amountCents = event.priceCents;
+    let validDiscount = null;
+
+    if (discountCode && event.priceCents > 0) {
+      const code = await prisma.discountCode.findUnique({
+        where: { eventId_code: { eventId: id, code: discountCode } }
+      });
+
+      if (code && code.isActive) {
+        const now = new Date();
+        if ((!code.validFrom || code.validFrom <= now) &&
+          (!code.validUntil || code.validUntil >= now) &&
+          (!code.maxUses || code.usedCount < code.maxUses)) {
+
+          validDiscount = code;
+          if (code.type === 'PERCENTAGE') {
+            amountCents = Math.max(0, Math.round(event.priceCents * (1 - code.amount / 100)));
+          } else {
+            amountCents = Math.max(0, event.priceCents - code.amount);
+          }
+        }
+      }
+    }
+
     // Create order
     const order = await prisma.order.create({
       data: {
         registrationId: registration.id,
-        amountCents: event.priceCents,
+        amountCents: amountCents,
         currency: event.currency,
         provider: 'RAZORPAY',
-        status: 'CREATED'
+        status: 'CREATED',
+        discountCodeId: validDiscount ? validDiscount.id : undefined
       }
     });
 
-    // If free event or RSVP, mark as paid/confirmed immediately
-    if (event.priceCents === 0 || event.type === 'RSVP') {
+    // If free event (or became free via discount) or RSVP
+    if (amountCents === 0 || event.type === 'RSVP') {
       const regStatus = event.type === 'RSVP' ? 'CONFIRMED' : 'PAID';
 
       await prisma.order.update({
@@ -98,6 +124,13 @@ router.post('/events/:id/register', async (req, res) => {
         where: { id: registration.id },
         data: { status: regStatus }
       });
+
+      if (validDiscount) {
+        await prisma.discountCode.update({
+          where: { id: validDiscount.id },
+          data: { usedCount: { increment: 1 } }
+        });
+      }
 
       // Generate ticket
       await enqueueTicketGeneration(order.id);
@@ -223,6 +256,14 @@ router.post('/orders/:id/verify-payment', async (req, res) => {
       where: { id: order.registrationId },
       data: { status: 'PAID' }
     });
+
+    // Increment discount usage if applicable
+    if (order.discountCodeId) {
+      await prisma.discountCode.update({
+        where: { id: order.discountCodeId },
+        data: { usedCount: { increment: 1 } }
+      });
+    }
 
     // Enqueue ticket generation
     await enqueueTicketGeneration(order.id);

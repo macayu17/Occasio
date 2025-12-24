@@ -9,7 +9,8 @@ import {
   X,
   Plus,
   Ticket,
-  BarChart3
+  BarChart3,
+  QrCode
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -21,7 +22,8 @@ export default function AdminLayout() {
   const navigation = [
     { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
     { name: 'Events', href: '/admin/events', icon: Calendar },
-    { name: 'Financials', href: '/admin/financials', icon: BarChart3 }, // Placeholder for now
+    { name: 'Financials', href: '/admin/financials', icon: BarChart3 },
+    { name: 'Scanner', href: '/scanner', icon: QrCode },
   ];
 
   const isActive = (path) => location.pathname === path;

@@ -25,6 +25,7 @@ import FormBuilderPage from './pages/admin/FormBuilderPage';
 import RegistrationsPage from './pages/admin/RegistrationsPage';
 import AnalyticsPage from './pages/admin/AnalyticsPage';
 import FinancialsPage from './pages/admin/FinancialsPage';
+import DiscountCodesPage from './pages/admin/DiscountCodesPage';
 
 // Layout
 import PublicLayout from './layouts/PublicLayout';
@@ -60,8 +61,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
 
-          {/* Scanner Route */}
-          <Route path="/scanner" element={<ScannerPage />} />
+
 
           {/* Admin Routes */}
           <Route element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
@@ -72,7 +72,12 @@ function App() {
             <Route path="/admin/events/:id/form" element={<FormBuilderPage />} />
             <Route path="/admin/events/:id/registrations" element={<RegistrationsPage />} />
             <Route path="/admin/events/:id/analytics" element={<AnalyticsPage />} />
+            <Route path="/admin/events/:id/analytics" element={<AnalyticsPage />} />
+            <Route path="/admin/events/:id/discounts" element={<DiscountCodesPage />} />
             <Route path="/admin/financials" element={<FinancialsPage />} />
+
+            {/* Scanner - limited to admins/organizers */}
+            <Route path="/scanner" element={<ScannerPage />} />
           </Route>
         </Routes>
       </Router>

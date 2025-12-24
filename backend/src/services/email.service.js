@@ -70,7 +70,7 @@ export async function sendTicketEmail(ticketId, email) {
 
     const info = await transporter.sendMail(mailOptions);
     console.log('Email sent:', info.messageId);
-    
+
     return info;
   } catch (error) {
     console.error('Send email error:', error);
@@ -196,6 +196,17 @@ export async function sendWelcomeEmail(email, name) {
       <p>Thank you for joining our event management platform.</p>
       <p>You can now start exploring and registering for amazing events!</p>
     `
+  };
+
+  return transporter.sendMail(mailOptions);
+}
+
+export async function sendCustomEmail(to, subject, html) {
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to: to, // Can be array or single string
+    subject: subject,
+    html: html
   };
 
   return transporter.sendMail(mailOptions);

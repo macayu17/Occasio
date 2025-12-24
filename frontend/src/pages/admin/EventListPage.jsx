@@ -40,6 +40,7 @@ export default function EventListPage() {
     if (action === 'form') navigate(`/admin/events/${eventId}/form`);
     if (action === 'registrations') navigate(`/admin/events/${eventId}/registrations`);
     if (action === 'analytics') navigate(`/admin/events/${eventId}/analytics`);
+    if (action === 'discounts') navigate(`/admin/events/${eventId}/discounts`);
     if (action === 'delete') handleDelete(eventId);
     if (action === 'toggle') {
       const event = events.find(e => e.id === eventId);
@@ -94,6 +95,9 @@ export default function EventListPage() {
           </button>
           <button onClick={() => handleAction('analytics', contextMenu.eventId)} className="w-full text-left px-4 py-2 hover:bg-white/10 text-white flex items-center gap-2">
             <BarChart3 size={14} /> Analytics
+          </button>
+          <button onClick={() => handleAction('discounts', contextMenu.eventId)} className="w-full text-left px-4 py-2 hover:bg-white/10 text-white flex items-center gap-2">
+            <Tag size={14} /> Discounts
           </button>
           <button onClick={() => handleAction('form', contextMenu.eventId)} className="w-full text-left px-4 py-2 hover:bg-white/10 text-white flex items-center gap-2">
             <FileText size={14} /> Form Builder

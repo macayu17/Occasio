@@ -357,12 +357,35 @@ router.get('/events/:id/analytics', async (req, res) => {
     const notCheckedInCount = tickets.length - checkedInCount;
     const checkInRate = tickets.length > 0 ? (checkedInCount / tickets.length) * 100 : 0;
 
-    // Daily registrations (last 7 days)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // Daily registrations (last 30 days likely better, but stick to 7 for UI)
+    const today = new Date();
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(today.getDate() - 7);
+
+    const fourteenDaysAgo = new Date(today);
+    fourteenDaysAgo.setDate(today.getDate() - 14);
+
+    // Calculate growth (This Week vs Last Week)
+    const currentWeekRegs = registrations.filter(r => {
+      const d = new Date(r.createdAt);
+      return d >= sevenDaysAgo && d <= today;
+    }).length;
+
+    const previousWeekRegs = registrations.filter(r => {
+      const d = new Date(r.createdAt);
+      return d >= fourteenDaysAgo && d < sevenDaysAgo;
+    }).length;
+
+    let registrationGrowth = 0;
+    if (previousWeekRegs > 0) {
+      registrationGrowth = ((currentWeekRegs - previousWeekRegs) / previousWeekRegs) * 100;
+    } else if (currentWeekRegs > 0) {
+      registrationGrowth = 100; // 0 to something is 100% growth effectively
+    }
 
     const recentRegs = registrations.filter(r => new Date(r.createdAt) >= sevenDaysAgo);
     const dailyMap = {};
+    // ... rest of dailyMap logic
     for (let i = 0; i < 7; i++) {
       const date = new Date();
       date.setDate(date.getDate() - i);
@@ -396,7 +419,7 @@ router.get('/events/:id/analytics', async (req, res) => {
       totalRevenue,
       averageOrderValue,
       conversionRate,
-      registrationGrowth: 0,
+      registrationGrowth: Number(registrationGrowth.toFixed(1)),
       checkedInCount,
       notCheckedInCount,
       checkInRate,
@@ -408,5 +431,81 @@ router.get('/events/:id/analytics', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch analytics' });
   }
 });
+
+// Broadcast email
+router.post('/broadcast',
+  [
+    body('subject').notEmpty().trim(),
+    body('content').notEmpty().trim(),
+    body('type').isIn(['ALL', 'EVENT']),
+    body('eventId').optional()
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { subject, content, type, eventId } = req.body;
+      let users = [];
+
+      if (type === 'EVENT') {
+        if (!eventId) {
+          return res.status(400).json({ error: 'Event ID is required for event broadcast' });
+        }
+
+        // Get unique emails from registrations for this event
+        const registrations = await prisma.registration.findMany({
+          where: {
+            eventId: eventId,
+            status: { in: ['PAID', 'PENDING'] } // Include pending? Maybe just PAID. Let's do both for now as a "reminder"
+          },
+          select: { userEmail: true },
+          distinct: ['userEmail']
+        });
+        users = registrations.map(r => r.userEmail);
+
+      } else {
+        // ALL users (unique emails across all registrations)
+        const registrations = await prisma.registration.findMany({
+          select: { userEmail: true },
+          distinct: ['userEmail']
+        });
+        users = registrations.map(r => r.userEmail);
+      }
+
+      if (users.length === 0) {
+        return res.json({ message: 'No recipients found', count: 0 });
+      }
+
+      // Send in background (basic loop for now)
+      // In production, this should go to a queue
+      const { sendCustomEmail } = await import('../services/email.service.js');
+
+      // Sending individually to hide other recipients (BCC effect)
+      // Or use BCC in one mail if list is small. 
+      // Safe approach: Loop.
+      console.log(`Broadcasting to ${users.length} users: ${subject}`);
+
+      // Process in chunks or just background it completely
+      (async () => {
+        try {
+          for (const email of users) {
+            await sendCustomEmail(email, subject, content); // Wait or Promise.all
+          }
+          console.log('Broadcast complete');
+        } catch (e) {
+          console.error('Broadcast error:', e);
+        }
+      })();
+
+      res.json({ message: `Broadcast started for ${users.length} recipients`, count: users.length });
+    } catch (error) {
+      console.error('Broadcast error:', error);
+      res.status(500).json({ error: 'Failed to initiate broadcast' });
+    }
+  }
+);
 
 export default router;

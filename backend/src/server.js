@@ -11,7 +11,10 @@ import adminRoutes from './routes/admin.routes.js';
 import registrationRoutes from './routes/registration.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import ticketRoutes from './routes/ticket.routes.js';
+
 import waitlistRoutes from './routes/waitlist.routes.js';
+import discountRoutes from './routes/discount.routes.js';
+import reviewRoutes from './routes/review.routes.js';
 
 dotenv.config();
 
@@ -28,11 +31,28 @@ const limiter = rateLimit({
 // Middleware
 app.use(helmet());
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    process.env.FRONTEND_URL
-  ].filter(Boolean),
+  origin: (origin, callback) => {
+    const allowedOrigins = [process.env.FRONTEND_URL].filter(Boolean);
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    // Check if origin is localhost (dev environment)
+    if (process.env.NODE_ENV !== 'production' && origin.match(/^http:\/\/localhost:\d+$/)) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    }
+
+    // For now, in development we might want to be permissive if it's not matching above
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+
+    const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+    return callback(new Error(msg), false);
+  },
   credentials: true
 }));
 
@@ -55,6 +75,8 @@ app.use('/api', registrationRoutes);
 app.use('/api', waitlistRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/tickets', ticketRoutes);
+app.use('/api/discounts', discountRoutes);
+app.use('/api', reviewRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
