@@ -94,7 +94,7 @@ export default function PublicLayout() {
               <div className="w-8 h-8 rounded-lg bg-[#27272a] flex items-center justify-center text-gray-400">
                 <Ticket size={16} />
               </div>
-              <span className="text-lg font-bold text-gray-200">EventHub</span>
+              <span className="text-lg font-bold text-gray-200">Occasio</span>
             </div>
 
             <div className="flex gap-8 text-sm text-gray-500">
@@ -104,7 +104,7 @@ export default function PublicLayout() {
             </div>
 
             <div className="text-sm text-gray-600">
-              © 2024 EventHub Inc.
+              © 2025 Occasio Events
             </div>
           </div>
         </div>

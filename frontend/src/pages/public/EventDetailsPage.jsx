@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Calendar, MapPin, DollarSign, Users, ArrowLeft, Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
-import api from '../../utils/api';
+import api, { getImageUrl } from '../../utils/api';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import ShareButton from '../../components/ShareButton';
@@ -87,7 +87,7 @@ export default function EventDetailsPage() {
             {/* Poster Image */}
             <div className="aspect-video w-full rounded-2xl overflow-hidden border border-white/5 bg-[#18181b]">
               <img
-                src={event.posterUrl || 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30'}
+                src={getImageUrl(event.posterUrl) || 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30'}
                 alt={event.title}
                 className="w-full h-full object-cover hover:scale-105 transition-transform duration-700"
               />

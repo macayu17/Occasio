@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, MapPin, Calendar, ArrowRight, Sparkles } from 'lucide-react';
-import api from '../../utils/api';
+import api, { getImageUrl } from '../../utils/api';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import FloatingLines from '../../components/FloatingLines';
@@ -70,7 +70,7 @@ export default function HomePage() {
 
           <p className="text-xl text-gray-400 mb-12 max-w-2xl mx-auto font-light leading-relaxed animate-slide-up animation-delay-100">
             From underground gigs to tech conferences.
-            Book your next memory with EventHub.
+            Book your next memory with Occasio.
           </p>
 
           {/* Glass Search Bar */}
@@ -145,23 +145,8 @@ function FilterPill({ label, active }) {
 }
 
 function EventCard({ event }) {
-  // Fix URL handling: If absolute URL, use it. If relative, try to prepend backend URL or just let it fail gracefully.
-  let posterImage = event.posterUrl;
-
-  // If it's a relative path starting with /uploads, prepend the backend URL if we knew it, 
-  // but since we proxy, /uploads should work if served from root. 
-  // However, Vite proxy might need configuration or we assume backend is at /api prefix... 
-  // Wait, backend serves /uploads directly. 
-  // If posterUrl is strictly just 'uploads/file.jpg', we need '/uploads/file.jpg'
-
-  if (posterImage && !posterImage.startsWith('http') && !posterImage.startsWith('/')) {
-    posterImage = `/${posterImage}`;
-  }
-
-  // Fallback
-  if (!posterImage) {
-    posterImage = `https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&auto=format&fit=crop&q=80`;
-  }
+  // Use helper for proper image URL resolution
+  const posterImage = getImageUrl(event.posterUrl) || 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&auto=format&fit=crop&q=80';
 
   return (
     <Link to={`/events/${event.id}`} className="group block h-full">

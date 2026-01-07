@@ -15,11 +15,11 @@ export default function LoginPage() {
     setLoading(true);
 
     const result = await login(email, password);
-    
+
     if (result.success) {
       navigate('/admin');
     }
-    
+
     setLoading(false);
   };
 
@@ -28,7 +28,7 @@ export default function LoginPage() {
       {/* Animated Background */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-radial from-white/10 to-transparent rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-radial from-secondary-400/20 to-transparent rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+        <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-radial from-secondary-400/20 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
       </div>
 
       <div className="max-w-md w-full relative z-10 animate-fade-in">
@@ -38,7 +38,7 @@ export default function LoginPage() {
               <Calendar className="h-12 w-12 text-white transform group-hover:scale-110 transition-transform" />
               <Sparkles className="h-4 w-4 text-yellow-300 absolute -top-1 -right-1 animate-pulse" />
             </div>
-            <span className="text-2xl font-bold text-white">EventHub</span>
+            <span className="text-2xl font-bold text-white">Occasio</span>
           </Link>
           <h2 className="text-4xl font-extrabold text-white mb-2">Welcome Back</h2>
           <p className="text-primary-100 text-lg">Sign in to manage your events</p>
