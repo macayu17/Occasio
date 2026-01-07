@@ -52,63 +52,81 @@ export async function generateTicketPDF(order) {
     // Generate HTML for ticket
     const html = generateTicketHTML(order, ticket, qrCodeDataURL);
 
-    // Generate PDF - use chromium for serverless environments
+    // Try to generate PDF - will skip if Chrome not available (e.g., on Render free tier)
+    let ticketPdfUrl = null;
     const isProduction = process.env.NODE_ENV === 'production';
 
-    const browser = await puppeteer.launch({
-      args: isProduction ? chromium.args : ['--no-sandbox', '--disable-setuid-sandbox'],
-      defaultViewport: chromium.defaultViewport,
-      executablePath: isProduction ? await chromium.executablePath() : undefined,
-      headless: isProduction ? chromium.headless : 'new',
-    });
-
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
-
-    const pdfBuffer = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: {
-        top: '20px',
-        right: '20px',
-        bottom: '20px',
-        left: '20px'
+    try {
+      // In production on Render, chromium binary may not be available
+      let executablePath = undefined;
+      if (isProduction) {
+        try {
+          executablePath = await chromium.executablePath();
+        } catch (e) {
+          console.log('Chromium not available, PDF generation skipped. Ticket will work with QR code.');
+          // Return ticket without PDF - QR code still works!
+          return ticket;
+        }
       }
-    });
 
-    await browser.close();
-
-    // Save PDF
-    const uploadDir = path.join(__dirname, '../../uploads/tickets');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
-    const filename = `ticket-${ticket.id}.pdf`;
-    const filepath = path.join(uploadDir, filename);
-    fs.writeFileSync(filepath, pdfBuffer);
-
-    // Upload to S3 in production
-    let ticketPdfUrl;
-    if (process.env.NODE_ENV === 'production' && process.env.AWS_ACCESS_KEY_ID) {
-      ticketPdfUrl = await uploadToS3({
-        path: filepath,
-        filename: filename,
-        mimetype: 'application/pdf'
+      const browser = await puppeteer.launch({
+        args: isProduction ? chromium.args : ['--no-sandbox', '--disable-setuid-sandbox'],
+        defaultViewport: chromium.defaultViewport,
+        executablePath: executablePath,
+        headless: isProduction ? chromium.headless : 'new',
       });
-    } else {
-      ticketPdfUrl = `/uploads/tickets/${filename}`;
+
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: 'networkidle0' });
+
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '20px',
+          right: '20px',
+          bottom: '20px',
+          left: '20px'
+        }
+      });
+
+      await browser.close();
+
+      // Save PDF locally
+      const uploadDir = path.join(__dirname, '../../uploads/tickets');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      const filename = `ticket-${ticket.id}.pdf`;
+      const filepath = path.join(uploadDir, filename);
+      fs.writeFileSync(filepath, pdfBuffer);
+
+      // Upload to S3 in production if configured
+      if (isProduction && process.env.AWS_ACCESS_KEY_ID) {
+        ticketPdfUrl = await uploadToS3({
+          path: filepath,
+          filename: filename,
+          mimetype: 'application/pdf'
+        });
+      } else {
+        ticketPdfUrl = `/uploads/tickets/${filename}`;
+      }
+
+      // Update ticket with PDF URL
+      ticket = await prisma.ticket.update({
+        where: { id: ticket.id },
+        data: { ticketPdfUrl }
+      });
+
+    } catch (pdfError) {
+      console.error('PDF generation failed, but ticket created:', pdfError.message);
+      // Continue without PDF - ticket still valid with QR code
     }
 
-    // Update ticket with PDF URL
-    const updatedTicket = await prisma.ticket.update({
-      where: { id: ticket.id },
-      data: { ticketPdfUrl }
-    });
-
-    return updatedTicket;
+    return ticket;
   } catch (error) {
-    console.error('Generate ticket PDF error:', error);
+    console.error('Generate ticket error:', error);
     throw error;
   }
 }

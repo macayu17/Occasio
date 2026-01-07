@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, FileText, Users, Eye, EyeOff, BarChart3, MoreVertical, MapPin, CalendarDays } from 'lucide-react';
+import { Plus, Edit, Trash2, FileText, Users, Eye, EyeOff, BarChart3, MoreVertical, MapPin, CalendarDays, Tag } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -180,10 +180,13 @@ export default function EventListPage() {
 
                   {/* Action Buttons */}
                   <div className="flex gap-2 pl-2">
+                    <Link to={`/admin/events/${event.id}/registrations`} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-[#E23744] transition-colors" title="View Registrations">
+                      <Users size={18} />
+                    </Link>
                     <Link to={`/admin/events/${event.id}/edit`} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title="Edit">
                       <Edit size={18} />
                     </Link>
-                    <button onClick={(e) => handleContextMenu(e, event.id)} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors lg:hidden">
+                    <button onClick={(e) => handleContextMenu(e, event.id)} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title="More Options">
                       <MoreVertical size={18} />
                     </button>
                   </div>

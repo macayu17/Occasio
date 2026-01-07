@@ -10,6 +10,9 @@ export default function HomePage() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('All Events');
+
+  const categories = ['All Events', 'Music', 'Workshops', 'Meetups', 'Sports', 'Tech', 'Art'];
 
   useEffect(() => {
     fetchEvents();
@@ -26,10 +29,18 @@ export default function HomePage() {
     }
   };
 
-  const filteredEvents = events.filter(event =>
-    event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    event.location.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter events by search term and category
+  const filteredEvents = events.filter(event => {
+    const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      event.location.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesCategory = categoryFilter === 'All Events' ||
+      event.title.toLowerCase().includes(categoryFilter.toLowerCase()) ||
+      event.description?.toLowerCase().includes(categoryFilter.toLowerCase()) ||
+      event.location.toLowerCase().includes(categoryFilter.toLowerCase());
+
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <div className="min-h-screen pb-20 bg-[#09090b]">
@@ -99,11 +110,14 @@ export default function HomePage() {
           </h2>
 
           <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-            <FilterPill label="All Events" active />
-            <FilterPill label="Music" />
-            <FilterPill label="Workshops" />
-            <FilterPill label="Meetups" />
-            <FilterPill label="Sports" />
+            {categories.map(category => (
+              <FilterPill
+                key={category}
+                label={category}
+                active={categoryFilter === category}
+                onClick={() => setCategoryFilter(category)}
+              />
+            ))}
           </div>
         </div>
 
@@ -133,12 +147,15 @@ export default function HomePage() {
   );
 }
 
-function FilterPill({ label, active }) {
+function FilterPill({ label, active, onClick }) {
   return (
-    <button className={`px-6 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${active
-      ? 'bg-white text-black shadow-lg shadow-white/10'
-      : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/5'
-      }`}>
+    <button
+      onClick={onClick}
+      className={`px-6 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${active
+        ? 'bg-white text-black shadow-lg shadow-white/10'
+        : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/5'
+        }`}
+    >
       {label}
     </button>
   );
