@@ -1,5 +1,6 @@
 import QRCode from 'qrcode';
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -51,10 +52,14 @@ export async function generateTicketPDF(order) {
     // Generate HTML for ticket
     const html = generateTicketHTML(order, ticket, qrCodeDataURL);
 
-    // Generate PDF
+    // Generate PDF - use chromium for serverless environments
+    const isProduction = process.env.NODE_ENV === 'production';
+
     const browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      args: isProduction ? chromium.args : ['--no-sandbox', '--disable-setuid-sandbox'],
+      defaultViewport: chromium.defaultViewport,
+      executablePath: isProduction ? await chromium.executablePath() : undefined,
+      headless: isProduction ? chromium.headless : 'new',
     });
 
     const page = await browser.newPage();
