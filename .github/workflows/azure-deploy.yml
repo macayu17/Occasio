@@ -41,9 +41,25 @@ jobs:
         cd backend
         zip -r ../release.zip .
 
+    - name: Login to Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Stop Azure Web App
+      uses: azure/CLI@v1
+      with:
+        inlineScript: |
+          az webapp stop --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group occasio
+
     - name: Deploy to Azure Web App
       uses: azure/webapps-deploy@v2
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
-        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
         package: release.zip
+
+    - name: Start Azure Web App
+      uses: azure/CLI@v1
+      with:
+        inlineScript: |
+          az webapp start --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group occasio
