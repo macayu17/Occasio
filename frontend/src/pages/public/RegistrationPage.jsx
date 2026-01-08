@@ -85,7 +85,7 @@ export default function RegistrationPage() {
 
       if (!requiresPayment) {
         toast.success('Registration successful!');
-        navigate('/success', { state: { eventId: event.id } });
+        navigate('/success', { state: { eventId: event.id, orderId: order.id } });
         return;
       }
 
@@ -120,7 +120,7 @@ export default function RegistrationPage() {
             });
 
             toast.success('Payment successful! Check your email for the ticket.');
-            navigate('/success', { state: { eventId: event.id } });
+            navigate('/success', { state: { eventId: event.id, orderId: order.id } });
           } catch (error) {
             console.error('Payment verification error:', error);
             toast.error('Payment completed but verification failed. Please contact support.');

@@ -145,4 +145,68 @@ router.get('/:id/pdf', async (req, res) => {
   }
 });
 
+// Download ticket by Order ID (Robust fallback)
+import { generateTicketPDF } from '../services/ticket.service.js';
+
+router.get('/order/:orderId/download', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    // Find ticket by order ID
+    let ticket = await prisma.ticket.findUnique({
+      where: { orderId }
+    });
+
+    // If ticket doesn't exist, try to find order and generate it
+    if (!ticket) {
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          registration: {
+            include: { event: true }
+          }
+        }
+      });
+
+      if (!order) {
+        return res.status(404).send('Order not found');
+      }
+
+      // Generate ticket now
+      console.log('Generating missing ticket for download...');
+      ticket = await generateTicketPDF(order);
+    }
+
+    // If ticket exists but no PDF, regenerate it
+    if (!ticket.ticketPdfUrl) {
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          registration: {
+            include: { event: true, formResponse: true }
+          }
+        }
+      });
+
+      console.log('Regenerating missing PDF for download...');
+      ticket = await generateTicketPDF(order);
+    }
+
+    // Redirect to the PDF URL
+    if (ticket.ticketPdfUrl) {
+      // If it's a relative path (local dev), redirect to backend URL
+      if (ticket.ticketPdfUrl.startsWith('/')) {
+        return res.redirect(process.env.BACKEND_URL + ticket.ticketPdfUrl);
+      }
+      return res.redirect(ticket.ticketPdfUrl);
+    } else {
+      return res.status(500).send('Failed to generate ticket PDF');
+    }
+
+  } catch (error) {
+    console.error('Download ticket by order error:', error);
+    res.status(500).send('Failed to process ticket download');
+  }
+});
+
 export default router;

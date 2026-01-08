@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { CheckCircle, Mail, Calendar } from 'lucide-react';
+import { CheckCircle, Mail, Calendar, Download } from 'lucide-react';
 
 export default function SuccessPage() {
   const { state } = useLocation();
@@ -43,6 +43,18 @@ export default function SuccessPage() {
               >
                 <Calendar size={20} />
                 Add to Calendar
+              </a>
+            )}
+
+            {state?.orderId && (
+              <a
+                href={`${import.meta.env.VITE_API_URL}/tickets/order/${state.orderId}/download`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3 rounded-xl bg-gray-900 text-white hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 font-medium shadow-lg shadow-gray-200"
+              >
+                <Download size={20} />
+                Download Ticket
               </a>
             )}
             <Link to="/" className="btn btn-primary w-full">
