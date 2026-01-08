@@ -1,6 +1,5 @@
+import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
-import puppeteer from 'puppeteer-core';
-import chromium from '@sparticuz/chromium';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -43,250 +42,145 @@ export async function generateTicketPDF(order) {
       });
     }
 
-    // Generate QR code image
-    const qrCodeDataURL = await QRCode.toDataURL(ticket.qrPayload, {
+    // Generate QR code as Buffer (for PDFKit)
+    const qrCodeBuffer = await QRCode.toBuffer(ticket.qrPayload, {
       width: 300,
       margin: 2
     });
 
-    // Generate HTML for ticket
-    const html = generateTicketHTML(order, ticket, qrCodeDataURL);
+    // Create a new PDF document
+    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    const buffers = [];
+    doc.on('data', buffers.push.bind(buffers));
 
-    // Try to generate PDF - will skip if Chrome not available (e.g., on Render free tier)
+    // Wait for the PDF to be fully generated
+    const pdfBuffer = await new Promise((resolve, reject) => {
+      doc.on('end', () => {
+        const pdfData = Buffer.concat(buffers);
+        resolve(pdfData);
+      });
+      doc.on('error', reject);
+
+      // --- Draw Ticket Design ---
+
+      const event = order.registration.event;
+      const attendee = order.registration.formResponse;
+
+      // Header Background (Simulated with a colored rectangle)
+      doc.rect(0, 0, 600, 150)
+        .fill('#667eea'); // Purple-ish blue
+
+      // Header Text
+      doc.fontSize(28)
+        .fillColor('white')
+        .text('Event Ticket', 50, 50, { align: 'center', width: 500 });
+
+      doc.fontSize(14)
+        .text('Your pass to an amazing experience', 50, 90, { align: 'center', width: 500 });
+
+      // Reset color
+      doc.fillColor('#333333');
+
+      // Event Details Section
+      let yPos = 180;
+      const xLabel = 50;
+      const xValue = 200;
+
+      doc.fontSize(12);
+
+      // Title
+      doc.font('Helvetica-Bold').text('Event:', xLabel, yPos);
+      doc.font('Helvetica').text(event.title, xValue, yPos);
+      yPos += 30;
+
+      // Location
+      doc.font('Helvetica-Bold').text('Location:', xLabel, yPos);
+      doc.font('Helvetica').text(event.location, xValue, yPos, { width: 350 });
+
+      // Adjust yPos based on height of location text
+      const locationHeight = doc.heightOfString(event.location, { width: 350 });
+      yPos += locationHeight + 15;
+
+      // Date
+      doc.font('Helvetica-Bold').text('Date & Time:', xLabel, yPos);
+      doc.font('Helvetica').text(new Date(event.startTime).toLocaleString(), xValue, yPos);
+      yPos += 30;
+
+      // Attendee
+      doc.font('Helvetica-Bold').text('Attendee:', xLabel, yPos);
+      doc.font('Helvetica').text(attendee.name || 'N/A', xValue, yPos);
+      yPos += 30;
+
+      // Email
+      doc.font('Helvetica-Bold').text('Email:', xLabel, yPos);
+      doc.font('Helvetica').text(attendee.email || order.registration.userEmail, xValue, yPos);
+      yPos += 30;
+
+      // Ticket ID
+      doc.font('Helvetica-Bold').text('Ticket ID:', xLabel, yPos);
+      doc.font('Courier').text(ticket.id.substring(0, 8).toUpperCase(), xValue, yPos);
+      yPos += 50;
+
+      // QR Code Section
+      doc.font('Helvetica-Bold').fontSize(16).text('Scan at Venue', 50, yPos, { align: 'center', width: 500 });
+      yPos += 30;
+
+      // Center QR Image
+      const qrWidth = 150;
+      const pageCenter = (595.28 - qrWidth) / 2; // A4 width is ~595 pts
+
+      try {
+        doc.image(qrCodeBuffer, pageCenter, yPos, { width: qrWidth });
+      } catch (err) {
+        console.error('Error adding QR image to PDF:', err);
+        doc.text('[QR Code Missing]', pageCenter, yPos);
+      }
+      yPos += qrWidth + 20;
+
+      doc.font('Helvetica').fontSize(10).text('Please present this QR code at the venue entrance', 50, yPos, { align: 'center', width: 500 });
+
+      // Footer
+      const bottomY = 750;
+      doc.fontSize(10).text(`Ticket issued on ${new Date(ticket.issuedAt).toLocaleString()}`, 50, bottomY, { align: 'center', width: 500 });
+      doc.text('This ticket is non-transferable and valid for one entry only', 50, bottomY + 15, { align: 'center', width: 500 });
+
+      // Finalize PDF file
+      doc.end();
+    });
+
+    // Upload directly to Cloudinary using buffer
     let ticketPdfUrl = null;
-    const isProduction = process.env.NODE_ENV === 'production';
-
-    try {
-      // In production, check for cloud environment
-      let executablePath = undefined;
-      const isAzure = process.env.WEBSITE_INSTANCE_ID || process.env.AZURE_FUNCTIONS_ENVIRONMENT;
-
-      if (isProduction) {
-        try {
-          executablePath = await chromium.executablePath();
-          console.log('📄 Chromium available for PDF generation');
-        } catch (e) {
-          // Only skip on non-Azure environments (like Render free tier)
-          if (!isAzure) {
-            console.log('Chromium not available, PDF generation skipped. Ticket will work with QR code.');
-            return ticket;
-          }
-          // On Azure, try system Chrome as fallback
-          executablePath = '/usr/bin/chromium-browser';
-        }
+    if (process.env.CLOUDINARY_CLOUD_NAME) {
+      try {
+        console.log('Uploading ticket PDF to Cloudinary...');
+        ticketPdfUrl = await uploadToCloudinary(pdfBuffer, 'tickets');
+      } catch (uploadError) {
+        console.error('Cloudinary upload failed:', uploadError);
+        // Fallback to local save
       }
-
-      const browser = await puppeteer.launch({
-        args: isProduction ? [...chromium.args, '--disable-dev-shm-usage'] : ['--no-sandbox', '--disable-setuid-sandbox'],
-        defaultViewport: chromium.defaultViewport,
-        executablePath: executablePath,
-        headless: isProduction ? chromium.headless : 'new',
-      });
-
-      const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: 'networkidle0' });
-
-      const pdfBuffer = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: {
-          top: '20px',
-          right: '20px',
-          bottom: '20px',
-          left: '20px'
-        }
-      });
-
-      await browser.close();
-
-      // Upload directly to Cloudinary using buffer (works on Azure too!)
-      if (process.env.CLOUDINARY_CLOUD_NAME) {
-        try {
-          console.log('Uploading ticket PDF to Cloudinary...');
-          ticketPdfUrl = await uploadToCloudinary(pdfBuffer, 'tickets');
-          // Valid URL will be returned, e.g., https://res.cloudinary.com/...
-        } catch (uploadError) {
-          console.error('Cloudinary upload failed:', uploadError);
-          // Fallback to local save if upload fails (useful for local dev)
-          const uploadDir = path.join(__dirname, '../../uploads/tickets');
-          if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-          }
-          const filename = `ticket-${ticket.id}.pdf`;
-          const filepath = path.join(uploadDir, filename);
-          fs.writeFileSync(filepath, pdfBuffer);
-          ticketPdfUrl = `/uploads/tickets/${filename}`;
-        }
-      } else {
-        // Local dev fallback
-        const uploadDir = path.join(__dirname, '../../uploads/tickets');
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        const filename = `ticket-${ticket.id}.pdf`;
-        const filepath = path.join(uploadDir, filename);
-        fs.writeFileSync(filepath, pdfBuffer);
-        ticketPdfUrl = `/uploads/tickets/${filename}`;
-      }
-
-      // Update ticket with PDF URL
-      ticket = await prisma.ticket.update({
-        where: { id: ticket.id },
-        data: { ticketPdfUrl }
-      });
-
-    } catch (pdfError) {
-      console.error('PDF generation failed, but ticket created:', pdfError.message);
-      // Continue without PDF - ticket still valid with QR code
     }
+
+    // If upload failed or not configured, save locally (works primarily in dev)
+    if (!ticketPdfUrl) {
+      const uploadDir = path.join(__dirname, '../../uploads/tickets');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      const filename = `ticket-${ticket.id}.pdf`;
+      const filepath = path.join(uploadDir, filename);
+      fs.writeFileSync(filepath, pdfBuffer);
+      ticketPdfUrl = `/uploads/tickets/${filename}`;
+    }
+
+    // Update ticket with PDF URL
+    ticket = await prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { ticketPdfUrl }
+    });
 
     return ticket;
   } catch (error) {
     console.error('Generate ticket error:', error);
     throw error;
   }
-}
-
-function generateTicketHTML(order, ticket, qrCodeDataURL) {
-  const event = order.registration.event;
-  const attendee = order.registration.formResponse;
-
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <style>
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-        }
-        body {
-          font-family: 'Arial', sans-serif;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          padding: 40px;
-        }
-        .ticket {
-          background: white;
-          border-radius: 20px;
-          padding: 40px;
-          max-width: 800px;
-          margin: 0 auto;
-          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        }
-        .header {
-          text-align: center;
-          border-bottom: 3px solid #667eea;
-          padding-bottom: 20px;
-          margin-bottom: 30px;
-        }
-        .header h1 {
-          color: #333;
-          font-size: 32px;
-          margin-bottom: 10px;
-        }
-        .header p {
-          color: #666;
-          font-size: 18px;
-        }
-        .event-info {
-          margin: 30px 0;
-        }
-        .info-row {
-          display: flex;
-          padding: 15px 0;
-          border-bottom: 1px solid #eee;
-        }
-        .info-label {
-          font-weight: bold;
-          color: #667eea;
-          width: 200px;
-        }
-        .info-value {
-          color: #333;
-          flex: 1;
-        }
-        .qr-section {
-          text-align: center;
-          margin: 40px 0;
-          padding: 30px;
-          background: #f8f9fa;
-          border-radius: 10px;
-        }
-        .qr-section img {
-          max-width: 300px;
-          height: auto;
-        }
-        .qr-section p {
-          margin-top: 15px;
-          color: #666;
-          font-size: 14px;
-        }
-        .footer {
-          text-align: center;
-          margin-top: 30px;
-          padding-top: 20px;
-          border-top: 2px solid #eee;
-          color: #999;
-          font-size: 12px;
-        }
-        .ticket-id {
-          font-family: monospace;
-          background: #f0f0f0;
-          padding: 5px 10px;
-          border-radius: 5px;
-          display: inline-block;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="ticket">
-        <div class="header">
-          <h1>🎟️ Event Ticket</h1>
-          <p>Your pass to an amazing experience</p>
-        </div>
-
-        <div class="event-info">
-          <div class="info-row">
-            <div class="info-label">Event:</div>
-            <div class="info-value">${event.title}</div>
-          </div>
-          <div class="info-row">
-            <div class="info-label">Location:</div>
-            <div class="info-value">${event.location}</div>
-          </div>
-          <div class="info-row">
-            <div class="info-label">Date & Time:</div>
-            <div class="info-value">${new Date(event.startTime).toLocaleString()}</div>
-          </div>
-          <div class="info-row">
-            <div class="info-label">Attendee Name:</div>
-            <div class="info-value">${attendee.name || 'N/A'}</div>
-          </div>
-          <div class="info-row">
-            <div class="info-label">Email:</div>
-            <div class="info-value">${attendee.email || order.registration.userEmail}</div>
-          </div>
-          <div class="info-row">
-            <div class="info-label">Ticket ID:</div>
-            <div class="info-value"><span class="ticket-id">${ticket.id.substring(0, 8).toUpperCase()}</span></div>
-          </div>
-        </div>
-
-        <div class="qr-section">
-          <h3 style="margin-bottom: 20px; color: #333;">Scan at Venue</h3>
-          <img src="${qrCodeDataURL}" alt="QR Code" />
-          <p>Please present this QR code at the venue entrance</p>
-        </div>
-
-        <div class="footer">
-          <p>Ticket issued on ${new Date(ticket.issuedAt).toLocaleString()}</p>
-          <p style="margin-top: 10px;">This ticket is non-transferable and valid for one entry only</p>
-          <p style="margin-top: 5px;">For support, contact: support@eventmanagement.com</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
 }
