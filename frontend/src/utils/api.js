@@ -41,7 +41,11 @@ export const getImageUrl = (url) => {
   if (url.startsWith('http://') || url.startsWith('https://')) {
     return url;
   }
-  // If it's a relative path (e.g., /uploads/...), prepend backend URL
+  // In development, use relative path for Vite proxy
+  // In production, prepend backend URL
+  if (import.meta.env.DEV) {
+    return url; // Let Vite proxy handle /uploads
+  }
   return `${BACKEND_URL}${url}`;
 };
 

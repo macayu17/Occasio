@@ -4,6 +4,7 @@ import prisma from '../config/db.js';
 import { authenticate, requireOrganizer } from '../middleware/auth.middleware.js';
 import { upload } from '../middleware/upload.middleware.js';
 import { uploadToS3 } from '../utils/s3.util.js';
+import { uploadToCloudinary, isCloudinaryConfigured } from '../utils/cloudinary.util.js';
 
 const router = express.Router();
 
@@ -161,11 +162,16 @@ router.post('/events/:id/poster-upload', upload.single('poster'), async (req, re
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    // Upload to S3 (or use local path in development)
+    // Upload to cloud storage or use local path
     let posterUrl;
-    if (process.env.NODE_ENV === 'production' && process.env.AWS_ACCESS_KEY_ID) {
+    if (isCloudinaryConfigured()) {
+      // Use Cloudinary (recommended for production)
+      posterUrl = await uploadToCloudinary(req.file.buffer, 'posters');
+    } else if (process.env.NODE_ENV === 'production' && process.env.AWS_ACCESS_KEY_ID) {
+      // Fallback to S3
       posterUrl = await uploadToS3(req.file);
     } else {
+      // Local development
       posterUrl = `/uploads/${req.file.filename}`;
     }
 
@@ -507,5 +513,95 @@ router.post('/broadcast',
     }
   }
 );
+
+// Get financial analytics
+router.get('/financials', async (req, res) => {
+  try {
+    const where = req.user.role === 'ADMIN'
+      ? {}
+      : { organizerId: req.user.id };
+
+    // Get all events for this organizer/admin
+    const events = await prisma.event.findMany({
+      where,
+      include: {
+        registrations: {
+          where: { status: 'PAID' },
+          include: {
+            orders: {
+              where: { status: 'PAID' }
+            }
+          }
+        }
+      }
+    });
+
+    // Calculate total revenue and tickets
+    let totalRevenue = 0;
+    let totalTickets = 0;
+    const monthlyRevenue = {};
+
+    // Initialize last 6 months
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      monthlyRevenue[key] = 0;
+    }
+
+    events.forEach(event => {
+      event.registrations.forEach(reg => {
+        reg.orders.forEach(order => {
+          totalRevenue += order.totalAmount;
+          totalTickets += order.quantity || 1;
+
+          // Monthly breakdown
+          const orderDate = new Date(order.createdAt);
+          const monthKey = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`;
+          if (monthlyRevenue[monthKey] !== undefined) {
+            monthlyRevenue[monthKey] += order.totalAmount;
+          }
+        });
+      });
+    });
+
+    // Calculate previous month's revenue for growth
+    const today = new Date();
+    const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+    const lastMonth = new Date(today);
+    lastMonth.setMonth(lastMonth.getMonth() - 1);
+    const lastMonthKey = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
+
+    const currentMonthRevenue = monthlyRevenue[currentMonthKey] || 0;
+    const lastMonthRevenue = monthlyRevenue[lastMonthKey] || 0;
+
+    let revenueGrowth = 0;
+    if (lastMonthRevenue > 0) {
+      revenueGrowth = ((currentMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100;
+    } else if (currentMonthRevenue > 0) {
+      revenueGrowth = 100;
+    }
+
+    // Active events count
+    const activeEvents = events.filter(e => new Date(e.endTime) > new Date()).length;
+
+    // Convert monthly revenue to array for chart
+    const revenueChart = Object.entries(monthlyRevenue).map(([month, amount]) => ({
+      month,
+      revenue: amount / 100 // Convert from cents
+    }));
+
+    res.json({
+      totalRevenue: totalRevenue / 100, // Convert from cents
+      totalTickets,
+      activeEvents,
+      revenueGrowth: Number(revenueGrowth.toFixed(1)),
+      revenueChart
+    });
+  } catch (error) {
+    console.error('Get financials error:', error);
+    res.status(500).json({ error: 'Failed to fetch financial data' });
+  }
+});
 
 export default router;

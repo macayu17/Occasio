@@ -105,7 +105,7 @@ export default function HomePage() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
           <h2 className="text-3xl font-bold text-white flex items-center gap-2">
-            Trending Events
+            All Events
             <div className="h-2 w-2 rounded-full bg-[#E23744] animate-pulse"></div>
           </h2>
 

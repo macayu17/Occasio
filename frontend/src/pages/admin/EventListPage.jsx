@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, FileText, Users, Eye, EyeOff, BarChart3, MoreVertical, MapPin, CalendarDays, Tag } from 'lucide-react';
+import { Plus, Edit, Trash2, FileText, Users, Eye, EyeOff, BarChart3, MoreVertical, MapPin, CalendarDays, Tag, Copy, Send } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -8,15 +8,23 @@ import { format } from 'date-fns';
 export default function EventListPage() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [contextMenu, setContextMenu] = useState(null); // { x, y, eventId }
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const menuRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchEvents();
+  }, []);
 
-    const handleClick = () => setContextMenu(null);
-    window.addEventListener('click', handleClick);
-    return () => window.removeEventListener('click', handleClick);
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const fetchEvents = async () => {
@@ -30,21 +38,43 @@ export default function EventListPage() {
     }
   };
 
-  const handleContextMenu = (e, eventId) => {
-    e.preventDefault();
-    setContextMenu({ x: e.pageX, y: e.pageY, eventId });
+  const toggleMenu = (e, eventId) => {
+    e.stopPropagation();
+    setOpenMenuId(openMenuId === eventId ? null : eventId);
   };
 
   const handleAction = (action, eventId) => {
-    if (action === 'edit') navigate(`/admin/events/${eventId}/edit`);
-    if (action === 'form') navigate(`/admin/events/${eventId}/form`);
-    if (action === 'registrations') navigate(`/admin/events/${eventId}/registrations`);
-    if (action === 'analytics') navigate(`/admin/events/${eventId}/analytics`);
-    if (action === 'discounts') navigate(`/admin/events/${eventId}/discounts`);
-    if (action === 'delete') handleDelete(eventId);
-    if (action === 'toggle') {
-      const event = events.find(e => e.id === eventId);
-      if (event) togglePublish(eventId, event.published);
+    setOpenMenuId(null);
+
+    switch (action) {
+      case 'edit':
+        navigate(`/admin/events/${eventId}/edit`);
+        break;
+      case 'form':
+        navigate(`/admin/events/${eventId}/form`);
+        break;
+      case 'registrations':
+        navigate(`/admin/events/${eventId}/registrations`);
+        break;
+      case 'analytics':
+        navigate(`/admin/events/${eventId}/analytics`);
+        break;
+      case 'discounts':
+        navigate(`/admin/events/${eventId}/discounts`);
+        break;
+      case 'delete':
+        handleDelete(eventId);
+        break;
+      case 'toggle':
+        const event = events.find(e => e.id === eventId);
+        if (event) togglePublish(eventId, event.published);
+        break;
+      case 'duplicate':
+        handleDuplicate(eventId);
+        break;
+      case 'view':
+        window.open(`/events/${eventId}`, '_blank');
+        break;
     }
   };
 
@@ -71,6 +101,29 @@ export default function EventListPage() {
     }
   };
 
+  const handleDuplicate = async (id) => {
+    try {
+      const event = events.find(e => e.id === id);
+      if (!event) return;
+
+      const newEvent = {
+        title: `${event.title} (Copy)`,
+        description: event.description,
+        location: event.location,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        capacity: event.capacity,
+        priceCents: event.priceCents
+      };
+
+      await api.post('/admin/events', newEvent);
+      toast.success('Event duplicated successfully');
+      fetchEvents();
+    } catch (error) {
+      toast.error('Failed to duplicate event');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center py-20">
@@ -81,37 +134,6 @@ export default function EventListPage() {
 
   return (
     <div className="animate-fade-in relative min-h-screen pb-20">
-      {/* Context Menu */}
-      {contextMenu && (
-        <div
-          className="fixed z-50 bg-[#18181b] border border-white/10 rounded-xl shadow-2xl py-2 w-48 text-sm backdrop-blur-xl"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
-        >
-          <button onClick={() => handleAction('edit', contextMenu.eventId)} className="w-full text-left px-4 py-2 hover:bg-white/10 text-white flex items-center gap-2">
-            <Edit size={14} /> Edit Event
-          </button>
-          <button onClick={() => handleAction('registrations', contextMenu.eventId)} className="w-full text-left px-4 py-2 hover:bg-white/10 text-white flex items-center gap-2">
-            <Users size={14} /> Registrations
-          </button>
-          <button onClick={() => handleAction('analytics', contextMenu.eventId)} className="w-full text-left px-4 py-2 hover:bg-white/10 text-white flex items-center gap-2">
-            <BarChart3 size={14} /> Analytics
-          </button>
-          <button onClick={() => handleAction('discounts', contextMenu.eventId)} className="w-full text-left px-4 py-2 hover:bg-white/10 text-white flex items-center gap-2">
-            <Tag size={14} /> Discounts
-          </button>
-          <button onClick={() => handleAction('form', contextMenu.eventId)} className="w-full text-left px-4 py-2 hover:bg-white/10 text-white flex items-center gap-2">
-            <FileText size={14} /> Form Builder
-          </button>
-          <div className="border-t border-white/10 my-1"></div>
-          <button onClick={() => handleAction('toggle', contextMenu.eventId)} className="w-full text-left px-4 py-2 hover:bg-white/10 text-white flex items-center gap-2">
-            <Eye size={14} /> Toggle Publish
-          </button>
-          <button onClick={() => handleAction('delete', contextMenu.eventId)} className="w-full text-left px-4 py-2 hover:bg-red-500/20 text-red-500 flex items-center gap-2">
-            <Trash2 size={14} /> Delete
-          </button>
-        </div>
-      )}
-
       <div className="flex justify-between items-end mb-8">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">My Events</h1>
@@ -133,13 +155,11 @@ export default function EventListPage() {
           </Link>
         </div>
       ) : (
-        <div className="space-y-4">
-          <p className="text-xs text-gray-500 text-right italic mb-2">Tip: Right-click on a row for more options</p>
+        <div className="space-y-4 overflow-visible">
           {events.map((event, index) => (
             <div
               key={event.id}
-              onContextMenu={(e) => handleContextMenu(e, event.id)}
-              className="glass-card p-5 rounded-2xl bg-[#18181b]/60 border border-white/5 hover:border-[#E23744]/30 hover:bg-[#18181b] transition-all group relative animate-slide-up"
+              className={`glass-card p-5 rounded-2xl bg-[#18181b]/60 border border-white/5 hover:border-[#E23744]/30 hover:bg-[#18181b] transition-all group animate-slide-up ${openMenuId === event.id ? 'relative z-[100]' : 'relative'}`}
               style={{ animationDelay: `${index * 50}ms` }}
             >
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -186,9 +206,52 @@ export default function EventListPage() {
                     <Link to={`/admin/events/${event.id}/edit`} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title="Edit">
                       <Edit size={18} />
                     </Link>
-                    <button onClick={(e) => handleContextMenu(e, event.id)} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title="More Options">
-                      <MoreVertical size={18} />
-                    </button>
+
+                    {/* Dropdown Menu */}
+                    <div className="relative" ref={openMenuId === event.id ? menuRef : null}>
+                      <button
+                        onClick={(e) => toggleMenu(e, event.id)}
+                        className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+                        title="More Options"
+                      >
+                        <MoreVertical size={18} />
+                      </button>
+
+                      {openMenuId === event.id && (
+                        <div className="absolute right-0 top-full mt-2 z-[9999] bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl py-2 w-52 text-sm backdrop-blur-xl animate-fade-in">
+                          <button onClick={() => handleAction('view', event.id)} className="w-full text-left px-4 py-2.5 hover:bg-white/10 text-white flex items-center gap-3">
+                            <Eye size={14} /> View Public Page
+                          </button>
+                          <button onClick={() => handleAction('edit', event.id)} className="w-full text-left px-4 py-2.5 hover:bg-white/10 text-white flex items-center gap-3">
+                            <Edit size={14} /> Edit Event
+                          </button>
+                          <button onClick={() => handleAction('duplicate', event.id)} className="w-full text-left px-4 py-2.5 hover:bg-white/10 text-white flex items-center gap-3">
+                            <Copy size={14} /> Duplicate Event
+                          </button>
+                          <div className="border-t border-white/10 my-1"></div>
+                          <button onClick={() => handleAction('registrations', event.id)} className="w-full text-left px-4 py-2.5 hover:bg-white/10 text-white flex items-center gap-3">
+                            <Users size={14} /> Registrations
+                          </button>
+                          <button onClick={() => handleAction('analytics', event.id)} className="w-full text-left px-4 py-2.5 hover:bg-white/10 text-white flex items-center gap-3">
+                            <BarChart3 size={14} /> Analytics
+                          </button>
+                          <button onClick={() => handleAction('discounts', event.id)} className="w-full text-left px-4 py-2.5 hover:bg-white/10 text-white flex items-center gap-3">
+                            <Tag size={14} /> Discounts
+                          </button>
+                          <button onClick={() => handleAction('form', event.id)} className="w-full text-left px-4 py-2.5 hover:bg-white/10 text-white flex items-center gap-3">
+                            <FileText size={14} /> Form Builder
+                          </button>
+                          <div className="border-t border-white/10 my-1"></div>
+                          <button onClick={() => handleAction('toggle', event.id)} className="w-full text-left px-4 py-2.5 hover:bg-white/10 text-white flex items-center gap-3">
+                            {event.published ? <EyeOff size={14} /> : <Eye size={14} />}
+                            {event.published ? 'Unpublish' : 'Publish'}
+                          </button>
+                          <button onClick={() => handleAction('delete', event.id)} className="w-full text-left px-4 py-2.5 hover:bg-red-500/20 text-red-500 flex items-center gap-3">
+                            <Trash2 size={14} /> Delete Event
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

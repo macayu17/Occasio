@@ -65,7 +65,11 @@ app.use(express.urlencoded({ extended: true }));
 app.use(limiter);
 
 // Serve uploaded files
-app.use('/uploads', express.static('uploads'));
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Routes
 app.use('/api/auth', authRoutes);

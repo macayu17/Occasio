@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import api from '../../utils/api';
+import api, { getImageUrl } from '../../utils/api';
 import toast from 'react-hot-toast';
 import { Upload } from 'lucide-react';
 import { format } from 'date-fns';
@@ -35,7 +35,7 @@ export default function EditEventPage() {
       });
 
       if (event.posterUrl) {
-        setPosterPreview(event.posterUrl);
+        setPosterPreview(getImageUrl(event.posterUrl));
       }
     } catch (error) {
       toast.error('Failed to fetch event');
