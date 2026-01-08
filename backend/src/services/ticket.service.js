@@ -5,7 +5,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import prisma from '../config/db.js';
 import { generateQRPayload } from '../utils/qr.util.js';
-import { uploadToCloudinary } from '../utils/cloudinary.util.js';
+import { uploadPdfToCloudinary } from '../utils/cloudinary.util.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -153,7 +153,7 @@ export async function generateTicketPDF(order) {
     if (process.env.CLOUDINARY_CLOUD_NAME) {
       try {
         console.log('Uploading ticket PDF to Cloudinary...');
-        ticketPdfUrl = await uploadToCloudinary(pdfBuffer, 'tickets');
+        ticketPdfUrl = await uploadPdfToCloudinary(pdfBuffer, 'tickets');
       } catch (uploadError) {
         console.error('Cloudinary upload failed:', uploadError);
         // Fallback to local save

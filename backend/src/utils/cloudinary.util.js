@@ -19,7 +19,7 @@ export const isCloudinaryConfigured = () => {
 };
 
 /**
- * Upload a file buffer to Cloudinary
+ * Upload an image buffer to Cloudinary
  * @param {Buffer} fileBuffer - The file buffer to upload
  * @param {string} folder - The folder to upload to (e.g., 'posters', 'tickets')
  * @returns {Promise<string>} - The secure URL of the uploaded image
@@ -45,6 +45,33 @@ export const uploadToCloudinary = (fileBuffer, folder = 'posters') => {
         );
 
         uploadStream.end(fileBuffer);
+    });
+};
+
+/**
+ * Upload a PDF buffer to Cloudinary (using raw resource type)
+ * @param {Buffer} pdfBuffer - The PDF buffer to upload
+ * @param {string} folder - The folder to upload to
+ * @returns {Promise<string>} - The secure URL of the uploaded PDF
+ */
+export const uploadPdfToCloudinary = (pdfBuffer, folder = 'tickets') => {
+    return new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+            {
+                folder: `occasio/${folder}`,
+                resource_type: 'raw',  // Important for PDFs!
+                format: 'pdf'
+            },
+            (error, result) => {
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve(result.secure_url);
+                }
+            }
+        );
+
+        uploadStream.end(pdfBuffer);
     });
 };
 
