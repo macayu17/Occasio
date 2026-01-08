@@ -166,7 +166,9 @@ router.post('/events/:id/poster-upload', upload.single('poster'), async (req, re
     let posterUrl;
     if (isCloudinaryConfigured()) {
       // Use Cloudinary (recommended for production)
+      console.log('📸 Uploading to Cloudinary...');
       posterUrl = await uploadToCloudinary(req.file.buffer, 'posters');
+      console.log('✅ Cloudinary URL:', posterUrl);
     } else if (process.env.NODE_ENV === 'production' && process.env.AWS_ACCESS_KEY_ID) {
       // Fallback to S3
       posterUrl = await uploadToS3(req.file);
@@ -175,10 +177,12 @@ router.post('/events/:id/poster-upload', upload.single('poster'), async (req, re
       posterUrl = `/uploads/${req.file.filename}`;
     }
 
+    console.log('💾 Saving posterUrl to DB for event:', id);
     const updatedEvent = await prisma.event.update({
       where: { id },
       data: { posterUrl }
     });
+    console.log('✅ DB updated, posterUrl now:', updatedEvent.posterUrl);
 
     res.json({ posterUrl: updatedEvent.posterUrl });
   } catch (error) {
