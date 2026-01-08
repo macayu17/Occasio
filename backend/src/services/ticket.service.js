@@ -6,7 +6,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import prisma from '../config/db.js';
 import { generateQRPayload } from '../utils/qr.util.js';
-import { uploadToS3 } from '../utils/s3.util.js';
+import { uploadToCloudinary } from '../utils/cloudinary.util.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -99,24 +99,33 @@ export async function generateTicketPDF(order) {
 
       await browser.close();
 
-      // Save PDF locally
-      const uploadDir = path.join(__dirname, '../../uploads/tickets');
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-
-      const filename = `ticket-${ticket.id}.pdf`;
-      const filepath = path.join(uploadDir, filename);
-      fs.writeFileSync(filepath, pdfBuffer);
-
-      // Upload to S3 in production if configured
-      if (isProduction && process.env.AWS_ACCESS_KEY_ID) {
-        ticketPdfUrl = await uploadToS3({
-          path: filepath,
-          filename: filename,
-          mimetype: 'application/pdf'
-        });
+      // Upload directly to Cloudinary using buffer (works on Azure too!)
+      if (process.env.CLOUDINARY_CLOUD_NAME) {
+        try {
+          console.log('Uploading ticket PDF to Cloudinary...');
+          ticketPdfUrl = await uploadToCloudinary(pdfBuffer, 'tickets');
+          // Valid URL will be returned, e.g., https://res.cloudinary.com/...
+        } catch (uploadError) {
+          console.error('Cloudinary upload failed:', uploadError);
+          // Fallback to local save if upload fails (useful for local dev)
+          const uploadDir = path.join(__dirname, '../../uploads/tickets');
+          if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+          }
+          const filename = `ticket-${ticket.id}.pdf`;
+          const filepath = path.join(uploadDir, filename);
+          fs.writeFileSync(filepath, pdfBuffer);
+          ticketPdfUrl = `/uploads/tickets/${filename}`;
+        }
       } else {
+        // Local dev fallback
+        const uploadDir = path.join(__dirname, '../../uploads/tickets');
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        const filename = `ticket-${ticket.id}.pdf`;
+        const filepath = path.join(uploadDir, filename);
+        fs.writeFileSync(filepath, pdfBuffer);
         ticketPdfUrl = `/uploads/tickets/${filename}`;
       }
 

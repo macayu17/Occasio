@@ -51,20 +51,14 @@ export async function sendTicketEmail(ticketId, email) {
     const event = ticket.order.registration.event;
     const attendee = ticket.order.registration.formResponse;
 
-    // Get PDF path
-    let pdfPath = null;
-    if (ticket.ticketPdfUrl && !ticket.ticketPdfUrl.startsWith('http')) {
-      pdfPath = path.join(__dirname, '../..', ticket.ticketPdfUrl);
-    }
-
     const mailOptions = {
       from: process.env.EMAIL_FROM,
       to: email,
       subject: `Your Ticket for ${event.title}`,
       html: generateEmailHTML(event, attendee, ticket),
-      attachments: pdfPath && fs.existsSync(pdfPath) ? [{
+      attachments: ticket.ticketPdfUrl ? [{
         filename: `ticket-${ticket.id.substring(0, 8)}.pdf`,
-        path: pdfPath
+        path: ticket.ticketPdfUrl // Nodemailer supports URLs here
       }] : []
     };
 
