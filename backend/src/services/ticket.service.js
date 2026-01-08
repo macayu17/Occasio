@@ -57,20 +57,27 @@ export async function generateTicketPDF(order) {
     const isProduction = process.env.NODE_ENV === 'production';
 
     try {
-      // In production on Render, chromium binary may not be available
+      // In production, check for cloud environment
       let executablePath = undefined;
+      const isAzure = process.env.WEBSITE_INSTANCE_ID || process.env.AZURE_FUNCTIONS_ENVIRONMENT;
+
       if (isProduction) {
         try {
           executablePath = await chromium.executablePath();
+          console.log('📄 Chromium available for PDF generation');
         } catch (e) {
-          console.log('Chromium not available, PDF generation skipped. Ticket will work with QR code.');
-          // Return ticket without PDF - QR code still works!
-          return ticket;
+          // Only skip on non-Azure environments (like Render free tier)
+          if (!isAzure) {
+            console.log('Chromium not available, PDF generation skipped. Ticket will work with QR code.');
+            return ticket;
+          }
+          // On Azure, try system Chrome as fallback
+          executablePath = '/usr/bin/chromium-browser';
         }
       }
 
       const browser = await puppeteer.launch({
-        args: isProduction ? chromium.args : ['--no-sandbox', '--disable-setuid-sandbox'],
+        args: isProduction ? [...chromium.args, '--disable-dev-shm-usage'] : ['--no-sandbox', '--disable-setuid-sandbox'],
         defaultViewport: chromium.defaultViewport,
         executablePath: executablePath,
         headless: isProduction ? chromium.headless : 'new',
