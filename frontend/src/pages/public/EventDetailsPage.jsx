@@ -68,201 +68,167 @@ export default function EventDetailsPage() {
   const isFull = availableSlots <= 0;
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen bg-[#09090b] text-white pb-20 relative overflow-hidden font-['Inter']">
+      {/* Ambient Background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-500/10 rounded-full blur-[100px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#E23744]/10 rounded-full blur-[100px]" />
+      </div>
+
       {/* Back Button */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        <Link to="/" className="inline-flex items-center text-gray-400 hover:text-white transition-colors">
-          <ArrowLeft size={20} className="mr-2" />
-          Back to Events
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 relative z-10">
+        <Link to="/" className="inline-flex items-center text-gray-400 hover:text-white transition-colors group">
+          <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center mr-3 group-hover:bg-white/10 transition-all border border-white/5">
+            <ArrowLeft size={16} />
+          </div>
+          <span className="text-sm font-medium">Back to Events</span>
         </Link>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content (Left) */}
           <div className="lg:col-span-2 space-y-8">
             {/* Title & Share Mobile */}
             <div className="flex justify-between items-start lg:hidden">
-              <h1 className="text-3xl font-bold text-white gradient-text">{event.title}</h1>
+              <h1 className="text-3xl font-bold text-white tracking-tight">{event.title}</h1>
               <ShareButton event={event} />
             </div>
 
             {/* Poster Image */}
-            <div className="aspect-video w-full rounded-2xl overflow-hidden border border-white/5 bg-[#18181b]">
+            <div className="aspect-video w-full rounded-3xl overflow-hidden border border-white/10 bg-[#18181b] shadow-2xl relative group">
+              <div className="absolute inset-0 bg-gradient-to-t from-[#09090b] via-transparent to-transparent opacity-60 z-10" />
               <img
                 src={getImageUrl(event.posterUrl) || 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30'}
                 alt={event.title}
-                className="w-full h-full object-cover hover:scale-105 transition-transform duration-700"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
               />
             </div>
 
             {/* Desktop Title */}
             <div className="hidden lg:flex justify-between items-start">
-              <h1 className="text-4xl font-bold text-white gradient-text">{event.title}</h1>
-              <ShareButton event={event} />
+              <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight leading-tight">{event.title}</h1>
+              <div className="flex gap-2">
+                <ShareButtons event={event} />
+              </div>
+            </div>
+
+            {/* Organized By */}
+            <div className="flex items-center space-x-4 bg-white/5 border border-white/5 p-4 rounded-2xl backdrop-blur-md">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#E23744] to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                {event.organizer.name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <p className="text-sm text-gray-400">Organized by</p>
+                <p className="font-semibold text-white">{event.organizer.name}</p>
+              </div>
             </div>
 
             {/* Description */}
-            <div className="card">
-              <h2 className="text-xl font-bold text-white mb-4">About this event</h2>
-              <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">{event.description}</p>
-            </div>
-
-            {/* Organizer */}
-            <div className="card flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-[#27272a] flex items-center justify-center text-gray-400 font-bold text-lg">
-                <Users size={20} />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Organized by</p>
-                <p className="text-white font-medium">{event.organizer.name}</p>
+            <div className="glass-card bg-[#18181b]/60 border border-white/10 p-8 rounded-3xl backdrop-blur-xl">
+              <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                About this event
+              </h3>
+              <div className="prose prose-invert max-w-none text-gray-300 leading-relaxed">
+                <p className="whitespace-pre-wrap">{event.description}</p>
               </div>
             </div>
 
-            {/* Polls */}
-            <PollsSection eventId={event.id} />
+            {/* Polls Section */}
+            {new Date(event.endTime) > new Date() && (
+              <PollsSection eventId={id} />
+            )}
 
-            {/* Reviews */}
-            <ReviewsSection eventId={event.id} />
+            {/* Reviews Section */}
+            <ReviewsSection eventId={id} eventEndTime={event.endTime} />
           </div>
 
-
           {/* Sidebar (Right) */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-24 space-y-6">
-              {/* Countdown Timer */}
-              {new Date(event.startTime) > new Date() && (
-                <CountdownTimer
-                  targetDate={event.startTime}
-                  label="Event starts in"
-                />
-              )}
+          <div className="space-y-6">
+            {/* Countdown Timer */}
+            <div className="glass-card bg-[#18181b]/80 border border-white/10 rounded-3xl p-6 backdrop-blur-xl shadow-xl">
+              <CountdownTimer targetDate={event.startTime} />
+            </div>
 
-              <div className="card space-y-6 border-[#E23744]/20 ring-1 ring-[#E23744]/20 shadow-[0_0_50px_-15px_rgba(226,55,68,0.15)]">
-                {/* Category Badge */}
-                {event.category && event.category !== 'OTHER' && (
-                  <div className="flex items-center gap-2">
-                    <Tag size={14} className="text-gray-500" />
-                    <span className="text-xs font-medium text-gray-400 bg-white/5 px-3 py-1 rounded-full">
-                      {event.category}
-                    </span>
-                    {event.tags?.length > 0 && event.tags.slice(0, 2).map(tag => (
-                      <span key={tag} className="text-xs text-gray-500 bg-white/5 px-2 py-1 rounded-full">
-                        {tag}
-                      </span>
-                    ))}
+            {/* Booking Card */}
+            <div className="glass-card bg-[#18181b]/80 border border-white/10 rounded-3xl p-8 backdrop-blur-xl shadow-2xl sticky top-8">
+              <div className="mb-6">
+                <p className="text-gray-400 text-sm font-medium uppercase tracking-wider mb-1">Price per ticket</p>
+                <div className="flex items-baseline gap-1">
+                  {event.priceCents === 0 ? (
+                    <span className="text-4xl font-bold text-white">Free</span>
+                  ) : (
+                    <>
+                      <span className="text-2xl font-bold text-[#E23744] align-top mt-1">{event.currency}</span>
+                      <span className="text-5xl font-bold text-white tracking-tight">{(event.priceCents / 100).toFixed(2)}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="flex items-start space-x-4 group">
+                  <div className="p-3 rounded-xl bg-white/5 text-[#E23744] group-hover:bg-[#E23744]/10 transition-colors">
+                    <Calendar size={20} />
                   </div>
-                )}
-
-                {/* Price & Action */}
-                <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-400">Price per ticket</p>
-                    <p className="text-2xl font-bold text-white">
-                      {event.priceCents === 0 ? 'Free' : `₹${(event.priceCents / 100).toFixed(2)}`}
+                    <p className="font-semibold text-white">Date and Time</p>
+                    <p className="text-sm text-gray-400 mt-1">{format(new Date(event.startTime), 'EEEE, MMMM d, yyyy')}</p>
+                    <p className="text-sm text-gray-400">{format(new Date(event.startTime), 'h:mm a')} - {format(new Date(event.endTime), 'h:mm a')}</p>
+                    {/* Add to Calendar Link placeholder if needed */}
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-4 group">
+                  <div className="p-3 rounded-xl bg-white/5 text-[#E23744] group-hover:bg-[#E23744]/10 transition-colors">
+                    <MapPin size={20} />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-white">Location</p>
+                    <p className="text-sm text-gray-400 mt-1">{event.location}</p>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-[#E23744] hover:text-[#ff4d5a] mt-2 inline-block transition-colors underline-offset-4 hover:underline"
+                    >
+                      View on map
+                    </a>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-4 group">
+                  <div className="p-3 rounded-xl bg-white/5 text-[#E23744] group-hover:bg-[#E23744]/10 transition-colors">
+                    <Users size={20} />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-white">Availability</p>
+                    <p className={`text-sm mt-1 font-medium ${isFull ? 'text-red-500' : 'text-emerald-400'}`}>
+                      {isFull ? 'Sold Out' : `${availableSlots} spots left`}
                     </p>
                   </div>
                 </div>
+              </div>
 
-                <hr className="border-white/10" />
-
-                {/* Details */}
-                <div className="space-y-4">
-                  <div className="flex gap-4">
-                    <Calendar className="text-gray-500 mt-1" size={20} />
-                    <div>
-                      <p className="font-medium text-white">Date and Time</p>
-                      <p className="text-sm text-gray-400">
-                        {format(new Date(event.startTime), 'EEEE, MMMM d, yyyy')}
-                      </p>
-                      <p className="text-sm text-gray-400">
-                        {format(new Date(event.startTime), 'h:mm a')} - {format(new Date(event.endTime), 'h:mm a')}
-                      </p>
-                      <a
-                        href={`/api/events/${event.id}/calendar`}
-                        className="text-xs text-[#E23744] hover:text-[#E23744]/80 mt-2 inline-flex items-center gap-1 font-medium transition-colors"
-                        title="Download .ics file"
-                      >
-                        <Calendar size={12} /> Add to Calendar
-                      </a>
-                    </div>
-                  </div>
-                  <div className="flex gap-4">
-                    <MapPin className="text-gray-500 mt-1" size={20} />
-                    <div className="w-full">
-                      <p className="font-medium text-white">Location</p>
-                      <p className="text-sm text-gray-400 mb-2">{event.location}</p>
-                      {/* Google Maps Embed */}
-                      <div className="w-full h-40 rounded-lg overflow-hidden border border-white/10 mt-2 bg-[#18181b]">
-                        <iframe
-                          width="100%"
-                          height="100%"
-                          frameBorder="0"
-                          scrolling="no"
-                          marginHeight="0"
-                          marginWidth="0"
-                          src={`https://maps.google.com/maps?q=${encodeURIComponent(event.location)}&t=&z=13&ie=UTF8&iwloc=&output=embed`}
-                          title="Event Location"
-                          className="filter grayscale opacity-80 hover:grayscale-0 hover:opacity-100 transition-all duration-500"
-                        ></iframe>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-4">
-                    <Users className="text-gray-500 mt-1" size={20} />
-                    <div>
-                      <p className="font-medium text-white">Availability</p>
-                      <p className={`text-sm ${isFull ? 'text-red-500' : 'text-emerald-500'}`}>
-                        {isFull ? 'Sold Out' : `${availableSlots} spots left`}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Action Button & Waitlist */}
+              <div className="mt-8 pt-8 border-t border-white/10">
                 {isFull ? (
                   !waitlistJoined ? (
-                    <div className="animate-fade-in bg-[#18181b] p-4 rounded-xl border border-white/5">
-                      <p className="text-sm font-medium text-white mb-3 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
-                        Join Waitlist
-                      </p>
-                      <form onSubmit={handleSubmit(onJoinWaitlist)} className="space-y-3">
-                        <div>
-                          <input
-                            type="text"
-                            placeholder="Full Name"
-                            className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-[#E23744] outline-none"
-                            {...register('name', { required: true })}
-                          />
-                        </div>
-                        <div>
-                          <input
-                            type="email"
-                            placeholder="Email Address"
-                            className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-[#E23744] outline-none"
-                            {...register('email', { required: true, pattern: /^\S+@\S+$/i })}
-                          />
-                        </div>
-                        <button
-                          disabled={isSubmitting}
-                          className="btn btn-primary w-full py-2 text-sm justify-center"
-                        >
-                          {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : 'Notify Me'}
-                        </button>
-                      </form>
-                    </div>
+                    <button
+                      onClick={handleSubmit(onJoinWaitlist)}
+                      disabled={isSubmitting}
+                      className="w-full py-4 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold transition-all border border-white/5 hover:border-white/20"
+                    >
+                      {isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : 'Join Waitlist'}
+                    </button>
                   ) : (
-                    <div className="bg-green-500/10 border border-green-500/20 p-4 rounded-xl text-center">
-                      <p className="text-green-500 font-medium text-sm">You joined the waitlist!</p>
-                      <p className="text-gray-400 text-xs mt-1">We'll email you if a spot opens up.</p>
+                    <div className="w-full py-4 bg-emerald-500/10 text-emerald-500 rounded-xl font-bold text-center border border-emerald-500/20">
+                      Added to Waitlist
                     </div>
                   )
                 ) : (
                   <Link
                     to={`/events/${id}/register`}
-                    className="btn btn-primary w-full py-3 justify-center text-base shadow-[0_0_20px_-5px_#E23744]"
+                    className="block w-full py-4 bg-[#E23744] hover:bg-[#c92633] text-white text-center rounded-xl font-bold text-lg shadow-lg shadow-[#E23744]/25 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
                   >
                     Book Tickets
                   </Link>

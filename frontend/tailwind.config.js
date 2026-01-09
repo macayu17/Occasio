@@ -8,7 +8,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'], // Ensure Inter is used
+        sans: ['Outfit', 'system-ui', 'sans-serif'], // Global font update
+        display: ['Outfit', 'system-ui', 'sans-serif'],
       },
       colors: {
         // Zomato/District/BMS Red-Pink Accent

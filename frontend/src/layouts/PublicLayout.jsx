@@ -1,12 +1,33 @@
 import { Outlet, Link } from 'react-router-dom';
-import { Compass, Menu, X, Ticket } from 'lucide-react';
+import { Compass, Menu, X, Ticket, Sparkles } from 'lucide-react';
 import { useState } from 'react';
+import FloatingLines from '../components/FloatingLines';
 
 export default function PublicLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#09090b] text-white selection:bg-[#E23744] selection:text-white">
+    <div className="min-h-screen flex flex-col bg-[#09090b] text-white selection:bg-[#E23744] selection:text-white relative overflow-x-hidden font-['Outfit']">
+      {/* --- Universal Dynamic Background --- */}
+      <div className="fixed inset-0 w-full h-full pointer-events-none z-0">
+        {/* Floating Lines */}
+        <div className="absolute inset-0 opacity-30">
+          <FloatingLines
+            linesGradient={['#333333', '#111111', '#E23744', '#1a1a1a']}
+            enabledWaves={['top', 'bottom']}
+            lineCount={[6, 8]}
+            lineDistance={[10, 15]}
+            animationSpeed={0.3}
+            interactive={true}
+            mixBlendMode="lighten"
+          />
+        </div>
+
+        {/* Ambient Gradient Orbs */}
+        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-purple-900/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-[#E23744]/10 rounded-full blur-[120px]" />
+      </div>
+
       {/* Premium Glass Header */}
       <nav className="glass-nav sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

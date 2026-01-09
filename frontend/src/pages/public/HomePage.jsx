@@ -58,28 +58,9 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen pb-20 bg-[#09090b]">
+    <div className="min-h-screen pb-20 relative z-10">
       {/* Hero Section */}
-      <section className="relative py-28 px-4 mb-16 overflow-hidden">
-        {/* Background Floating Lines - Subtle & Dark */}
-        <div className="absolute inset-0 w-full h-full opacity-40 pointer-events-none">
-          <FloatingLines
-            linesGradient={['#333333', '#111111', '#E23744', '#1a1a1a']}
-            enabledWaves={['top', 'bottom']}
-            lineCount={[8, 12]}
-            lineDistance={[8, 10]}
-            animationSpeed={0.5}
-            interactive={true}
-            mixBlendMode="lighten"
-          />
-        </div>
-
-        {/* Static Gradient Orbs for Glass Pop */}
-        <div className="absolute top-20 left-10 w-96 h-96 bg-purple-900/20 rounded-full blur-[100px] pointer-events-none"></div>
-        <div className="absolute bottom-10 right-10 w-96 h-96 bg-red-900/10 rounded-full blur-[100px] pointer-events-none"></div>
-
-        {/* Glass Overlay on Bottom Fade */}
-        <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#09090b] to-transparent z-10"></div>
+      <section className="relative py-28 px-4 mb-4 overflow-hidden">
 
         <div className="relative z-20 max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-nav border border-white/10 mb-8 animate-fade-in text-gray-400 text-sm font-medium">
@@ -107,7 +88,7 @@ export default function HomePage() {
               <input
                 type="text"
                 placeholder="Search for events, artists, or venues..."
-                className="w-full bg-transparent border-none text-white placeholder-gray-500 text-lg px-4 py-3 focus:ring-0 font-medium"
+                className="w-full bg-transparent border-none text-white placeholder-gray-500 text-lg px-4 py-3 focus:ring-0 font-medium font-['Outfit']"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
