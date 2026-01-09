@@ -101,7 +101,10 @@ export async function generateTicketPDF(order) {
     const accentColor = ticketStyle.accentColor || '#ffffff';
     const backgroundColor = ticketStyle.backgroundColor || '#18181b';
     const headerImage = ticketStyle.headerImage || '';
-    const fontFamily = ticketStyle.fontFamily || 'Helvetica';
+    // Validate font - only allow PDF built-in fonts, fallback to Helvetica
+    const VALID_FONTS = ['Helvetica', 'Times-Roman', 'Courier'];
+    const rawFont = ticketStyle.fontFamily || 'Helvetica';
+    const fontFamily = VALID_FONTS.includes(rawFont) ? rawFont : 'Helvetica';
     const fontBold = fontFamily === 'Times-Roman' ? 'Times-Bold' :
       fontFamily === 'Courier' ? 'Courier-Bold' : 'Helvetica-Bold';
     const showQR = ticketStyle.showQR !== false;
@@ -369,7 +372,10 @@ export async function generateTicketPDFBuffer(order) {
     const accentColor = styles.accentColor || '#ffffff';
     const backgroundColor = styles.backgroundColor || '#18181b';
     const headerImage = styles.headerImage || '';
-    const fontFamily = styles.fontFamily || 'Helvetica';
+    // Validate font - only allow PDF built-in fonts, fallback to Helvetica
+    const VALID_FONTS = ['Helvetica', 'Times-Roman', 'Courier'];
+    const rawFont = styles.fontFamily || 'Helvetica';
+    const fontFamily = VALID_FONTS.includes(rawFont) ? rawFont : 'Helvetica';
     const fontBold = fontFamily === 'Times-Roman' ? 'Times-Bold' :
       fontFamily === 'Courier' ? 'Courier-Bold' : 'Helvetica-Bold';
     const showQR = styles.showQR !== false;
