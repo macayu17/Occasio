@@ -154,7 +154,7 @@ export default function HomePage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredEvents.map((event, idx) => (
+            {events.map((event, idx) => (
               <div key={event.id} className="animate-fade-in" style={{ animationDelay: `${idx * 100}ms` }}>
                 <EventCard event={event} />
               </div>
