@@ -15,6 +15,7 @@ import ticketRoutes from './routes/ticket.routes.js';
 import waitlistRoutes from './routes/waitlist.routes.js';
 import discountRoutes from './routes/discount.routes.js';
 import reviewRoutes from './routes/review.routes.js';
+import pollRoutes from './routes/poll.routes.js';
 
 dotenv.config();
 
@@ -81,12 +82,13 @@ app.use('/api/webhooks', webhookRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/discounts', discountRoutes);
 app.use('/api', reviewRoutes);
+app.use('/api', pollRoutes);
 
 // Health check with version for deployment verification
 app.get('/health', (req, res) => {
   res.json({
     status: 'OK',
-    version: '2026-01-09-v2',  // Update this to verify deployment
+    version: '2026-01-09-v3-polls',  // Update this to verify deployment
     timestamp: new Date().toISOString()
   });
 });

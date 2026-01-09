@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import ShareButton from '../../components/ShareButton';
 import ShareButtons from '../../components/ShareButtons';
 import CountdownTimer from '../../components/CountdownTimer';
+import PollsSection from '../../components/PollsSection';
 import ReviewsSection from '../../components/ReviewsSection';
 
 export default function EventDetailsPage() {
@@ -117,6 +118,9 @@ export default function EventDetailsPage() {
                 <p className="text-white font-medium">{event.organizer.name}</p>
               </div>
             </div>
+
+            {/* Polls */}
+            <PollsSection eventId={event.id} />
 
             {/* Reviews */}
             <ReviewsSection eventId={event.id} />

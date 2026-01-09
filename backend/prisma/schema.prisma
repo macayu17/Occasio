@@ -76,6 +76,7 @@ model Event {
   waitlist       Waitlist[]
   discounts      DiscountCode[]
   reviews        Review[]
+  polls          Poll[]
   
   @@map("events")
 }
@@ -217,3 +218,65 @@ model Review {
   @@unique([eventId, userId]) // One review per user per event
   @@map("reviews")
 }
+
+// ============================================
+// EVENT POLLS
+// ============================================
+
+model Poll {
+  id          String       @id @default(uuid())
+  eventId     String       @map("event_id")
+  question    String
+  description String?      @db.Text
+  isActive    Boolean      @default(true) @map("is_active")
+  allowMultiple Boolean    @default(false) @map("allow_multiple")
+  endsAt      DateTime?    @map("ends_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  
+  event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  options     PollOption[]
+  
+  @@map("polls")
+}
+
+model PollOption {
+  id        String     @id @default(uuid())
+  pollId    String     @map("poll_id")
+  text      String
+  order     Int        @default(0)
+  
+  poll      Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes     PollVote[]
+  
+  @@map("poll_options")
+}
+
+model PollVote {
+  id           String      @id @default(uuid())
+  optionId     String      @map("option_id")
+  voterEmail   String      @map("voter_email")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  
+  option       PollOption  @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  
+  @@unique([optionId, voterEmail]) // One vote per option per email
+  @@map("poll_votes")
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
+model Notification {
+  id          String   @id @default(uuid())
+  eventId     String?  @map("event_id")
+  type        String   // poll_created, event_reminder, waitlist_available
+  title       String
+  message     String   @db.Text
+  recipientEmails String[] @map("recipient_emails")
+  sentAt      DateTime? @map("sent_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  
+  @@map("notifications")
+}
+

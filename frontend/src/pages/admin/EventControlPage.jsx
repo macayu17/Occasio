@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import {
     ArrowLeft, Users, QrCode, BarChart3, Palette,
     Search, Check, X, RotateCcw, LogIn, LogOut,
-    Clock, UserCheck, UserX, RefreshCw
+    Clock, UserCheck, UserX, RefreshCw, MessageSquare, Trash2, PlusCircle
 } from 'lucide-react';
 import api from '../../utils/api';
 import { format } from 'date-fns';
@@ -13,6 +13,7 @@ const TABS = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'checkin', label: 'Check-in', icon: QrCode },
     { id: 'attendees', label: 'Attendees', icon: Users },
+    { id: 'polls', label: 'Polls', icon: MessageSquare },
     { id: 'style', label: 'Ticket Style', icon: Palette }
 ];
 
@@ -142,8 +143,8 @@ export default function EventControlPage() {
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === tab.id
-                                ? 'bg-white text-black'
-                                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                            ? 'bg-white text-black'
+                            : 'text-gray-400 hover:text-white hover:bg-white/5'
                             }`}
                     >
                         <tab.icon size={18} />
@@ -179,6 +180,10 @@ export default function EventControlPage() {
                     statusFilter={statusFilter}
                     setStatusFilter={setStatusFilter}
                 />
+            )}
+
+            {activeTab === 'polls' && (
+                <PollsTab eventId={eventId} />
             )}
 
             {activeTab === 'style' && (
@@ -441,8 +446,8 @@ function TicketStyleTab({ eventId, currentStyle }) {
                                 key={t}
                                 onClick={() => setStyle({ ...style, template: t })}
                                 className={`p-4 rounded-lg border-2 transition-all capitalize ${style.template === t
-                                        ? 'border-[#E23744] bg-[#E23744]/10'
-                                        : 'border-white/10 hover:border-white/20'
+                                    ? 'border-[#E23744] bg-[#E23744]/10'
+                                    : 'border-white/10 hover:border-white/20'
                                     }`}
                             >
                                 {t}
@@ -518,6 +523,267 @@ function TicketStyleTab({ eventId, currentStyle }) {
                 >
                     {saving ? 'Saving...' : 'Save Changes'}
                 </button>
+            </div>
+        </div>
+    );
+}
+
+// Polls Tab Component
+function PollsTab({ eventId }) {
+    const [polls, setPolls] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [showCreate, setShowCreate] = useState(false);
+
+    // Form state
+    const [newPoll, setNewPoll] = useState({
+        question: '',
+        description: '',
+        allowMultiple: false,
+        notifyUsers: true,
+        options: [{ text: '' }, { text: '' }]
+    });
+
+    useEffect(() => {
+        fetchPolls();
+    }, [eventId]);
+
+    const fetchPolls = async () => {
+        try {
+            const res = await api.get(`/admin/events/${eventId}/polls`);
+            setPolls(res.data);
+        } catch (error) {
+            console.error('Failed to fetch polls');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleCreateOption = () => {
+        setNewPoll({
+            ...newPoll,
+            options: [...newPoll.options, { text: '' }]
+        });
+    };
+
+    const handleRemoveOption = (idx) => {
+        const updated = newPoll.options.filter((_, i) => i !== idx);
+        setNewPoll({ ...newPoll, options: updated });
+    };
+
+    const handleOptionChange = (idx, val) => {
+        const updated = [...newPoll.options];
+        updated[idx].text = val;
+        setNewPoll({ ...newPoll, options: updated });
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+
+        // Validation
+        if (!newPoll.question.trim()) return toast.error('Question is required');
+        const validOptions = newPoll.options.filter(o => o.text.trim());
+        if (validOptions.length < 2) return toast.error('At least 2 options required');
+
+        try {
+            await api.post(`/admin/events/${eventId}/polls`, {
+                ...newPoll,
+                options: validOptions
+            });
+            toast.success('Poll created successfully');
+            setShowCreate(false);
+            setNewPoll({
+                question: '',
+                description: '',
+                allowMultiple: false,
+                notifyUsers: true,
+                options: [{ text: '' }, { text: '' }]
+            });
+            fetchPolls();
+        } catch (error) {
+            toast.error(error.response?.data?.error || 'Failed to create poll');
+        }
+    };
+
+    const handleDelete = async (pollId) => {
+        if (!confirm('Are you sure you want to delete this poll?')) return;
+        try {
+            await api.delete(`/admin/polls/${pollId}`);
+            toast.success('Poll deleted');
+            fetchPolls();
+        } catch (error) {
+            toast.error('Failed to delete poll');
+        }
+    };
+
+    const toggleActive = async (poll, currentStatus) => {
+        try {
+            await api.put(`/admin/polls/${poll.id}`, { isActive: !currentStatus });
+            toast.success('Poll updated');
+            fetchPolls();
+        } catch (error) {
+            toast.error('Failed to update poll');
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <h3 className="text-xl font-bold text-white">Event Polls</h3>
+                <button
+                    onClick={() => setShowCreate(!showCreate)}
+                    className="btn btn-primary"
+                >
+                    {showCreate ? 'Cancel' : 'Create Poll'}
+                </button>
+            </div>
+
+            {showCreate && (
+                <div className="card p-6 animate-fade-in border-l-4 border-l-[#E23744]">
+                    <h4 className="text-lg font-bold mb-4">Create New Poll</h4>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Question</label>
+                            <input
+                                type="text"
+                                value={newPoll.question}
+                                onChange={e => setNewPoll({ ...newPoll, question: e.target.value })}
+                                placeholder="What would you like to ask?"
+                                className="input"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Description (Optional)</label>
+                            <textarea
+                                value={newPoll.description}
+                                onChange={e => setNewPoll({ ...newPoll, description: e.target.value })}
+                                placeholder="Add some context..."
+                                className="input min-h-[80px]"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-2">Options</label>
+                            <div className="space-y-2">
+                                {newPoll.options.map((opt, idx) => (
+                                    <div key={idx} className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={opt.text}
+                                            onChange={e => handleOptionChange(idx, e.target.value)}
+                                            placeholder={`Option ${idx + 1}`}
+                                            className="input"
+                                        />
+                                        {newPoll.options.length > 2 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRemoveOption(idx)}
+                                                className="btn btn-secondary px-3"
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                                <button
+                                    type="button"
+                                    onClick={handleCreateOption}
+                                    className="text-sm text-[#E23744] hover:text-white flex items-center gap-1 mt-2"
+                                >
+                                    <PlusCircle size={14} /> Add Option
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-6 pt-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={newPoll.allowMultiple}
+                                    onChange={e => setNewPoll({ ...newPoll, allowMultiple: e.target.checked })}
+                                    className="w-4 h-4 rounded border-gray-600 text-[#E23744] focus:ring-[#E23744]"
+                                />
+                                <span className="text-sm text-gray-300">Allow multiple answers</span>
+                            </label>
+
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={newPoll.notifyUsers}
+                                    onChange={e => setNewPoll({ ...newPoll, notifyUsers: e.target.checked })}
+                                    className="w-4 h-4 rounded border-gray-600 text-[#E23744] focus:ring-[#E23744]"
+                                />
+                                <span className="text-sm text-gray-300">Notify attendees via email</span>
+                            </label>
+                        </div>
+
+                        <div className="pt-2">
+                            <button type="submit" className="btn btn-primary w-full">Launch Poll</button>
+                        </div>
+                    </form>
+                </div>
+            )}
+
+            <div className="grid gap-4">
+                {polls.length === 0 ? (
+                    <div className="text-center py-10 text-gray-500">
+                        <MessageSquare size={40} className="mx-auto mb-2 opacity-20" />
+                        <p>No polls yet</p>
+                    </div>
+                ) : (
+                    polls.map(poll => (
+                        <div key={poll.id} className="card p-5 group">
+                            <div className="flex justify-between items-start mb-3">
+                                <div>
+                                    <h5 className="font-bold text-lg text-white">{poll.question}</h5>
+                                    <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
+                                        <span>{format(new Date(poll.createdAt), 'MMM d, yyyy')}</span>
+                                        <span>•</span>
+                                        <span className={poll.isActive ? 'text-green-500' : 'text-orange-500'}>
+                                            {poll.isActive ? 'Active' : 'Ended'}
+                                        </span>
+                                        <span>•</span>
+                                        <span>{poll.options.reduce((acc, o) => acc + (o._count?.votes || 0), 0)} votes</span>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                        onClick={() => toggleActive(poll, poll.isActive)}
+                                        className="btn btn-secondary px-3 py-1 text-xs"
+                                    >
+                                        {poll.isActive ? 'Close' : 'Reopen'}
+                                    </button>
+                                    <button
+                                        onClick={() => handleDelete(poll.id)}
+                                        className="btn btn-ghost px-3 py-1 text-xs hover:bg-red-500/10 hover:text-red-500"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2 mt-4">
+                                {poll.options.map(opt => {
+                                    const totalVotes = poll.options.reduce((acc, o) => acc + (o._count?.votes || 0), 0);
+                                    const percentage = totalVotes > 0 ? ((opt._count?.votes || 0) / totalVotes * 100).toFixed(1) : 0;
+
+                                    return (
+                                        <div key={opt.id} className="relative h-8 bg-white/5 rounded-md overflow-hidden">
+                                            <div
+                                                className="absolute top-0 left-0 h-full bg-white/10"
+                                                style={{ width: `${percentage}%` }}
+                                            />
+                                            <div className="absolute inset-0 flex items-center justify-between px-3 text-xs">
+                                                <span>{opt.text}</span>
+                                                <span>{opt._count?.votes || 0} ({percentage}%)</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ))
+                )}
             </div>
         </div>
     );
