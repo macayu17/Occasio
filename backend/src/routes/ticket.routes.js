@@ -183,7 +183,7 @@ router.get('/order/:orderId/download', async (req, res) => {
         where: { id: orderId },
         include: {
           registration: {
-            include: { event: true, formResponse: true }
+            include: { event: true }
           }
         }
       });

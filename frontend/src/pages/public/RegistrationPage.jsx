@@ -12,6 +12,7 @@ export default function RegistrationPage() {
   const [loading, setLoading] = useState(true);
 
   const [submitting, setSubmitting] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
   const [discountCode, setDiscountCode] = useState('');
   const [appliedDiscount, setAppliedDiscount] = useState(null);
   const [discountMsg, setDiscountMsg] = useState('');
@@ -111,6 +112,7 @@ export default function RegistrationPage() {
         description: 'Event Registration',
         order_id: orderId,
         handler: async function (response) {
+          setProcessingPayment(true);
           try {
             // Verify payment on backend
             await api.post(`/orders/${order.id}/verify-payment`, {
@@ -124,6 +126,7 @@ export default function RegistrationPage() {
           } catch (error) {
             console.error('Payment verification error:', error);
             toast.error('Payment completed but verification failed. Please contact support.');
+            setProcessingPayment(false);
           }
         },
         prefill: {
@@ -158,6 +161,58 @@ export default function RegistrationPage() {
         <div className="relative">
           <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary-200 dark:border-primary-900"></div>
           <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-primary-600 absolute top-0"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // Processing Payment Overlay
+  if (processingPayment) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
+        <div className="text-center p-8">
+          {/* Animated Processing Spinner */}
+          <div className="relative mb-8">
+            <div className="w-24 h-24 mx-auto">
+              <div className="absolute inset-0 rounded-full border-4 border-primary-200/30"></div>
+              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-primary-500 animate-spin"></div>
+              <div className="absolute inset-2 rounded-full border-4 border-transparent border-t-secondary-500 animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }}></div>
+              <div className="absolute inset-4 rounded-full border-4 border-transparent border-t-green-500 animate-spin" style={{ animationDuration: '2s' }}></div>
+            </div>
+          </div>
+
+          {/* Status Text */}
+          <h2 className="text-2xl font-bold text-white mb-3">Processing Your Payment</h2>
+          <p className="text-gray-400 mb-6 max-w-md">
+            Please wait while we confirm your payment and generate your ticket.
+            This may take a few moments...
+          </p>
+
+          {/* Progress Steps */}
+          <div className="flex flex-col items-start max-w-xs mx-auto space-y-3 text-left">
+            <div className="flex items-center text-green-400">
+              <svg className="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+              <span className="text-sm">Payment received</span>
+            </div>
+            <div className="flex items-center text-primary-400">
+              <div className="w-5 h-5 mr-3 flex items-center justify-center">
+                <div className="w-3 h-3 rounded-full bg-primary-400 animate-pulse"></div>
+              </div>
+              <span className="text-sm">Verifying transaction...</span>
+            </div>
+            <div className="flex items-center text-gray-500">
+              <div className="w-5 h-5 mr-3 flex items-center justify-center">
+                <div className="w-2 h-2 rounded-full bg-gray-500"></div>
+              </div>
+              <span className="text-sm">Generating your ticket</span>
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-500 mt-8">
+            Do not close or refresh this page
+          </p>
         </div>
       </div>
     );
