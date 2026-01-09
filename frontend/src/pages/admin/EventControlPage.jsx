@@ -1,18 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-    ArrowLeft, Users, QrCode, BarChart3, Palette,
+    ArrowLeft, Users, Users2, QrCode, BarChart3, Palette,
     Search, Check, X, RotateCcw, LogIn, LogOut,
     Clock, UserCheck, UserX, RefreshCw, MessageSquare, Trash2, PlusCircle
 } from 'lucide-react';
 import api from '../../utils/api';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import Dock from '../../components/Dock';
+import TeamManagement from '../../components/TeamManagement';
+
 
 const TABS = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'checkin', label: 'Check-in', icon: QrCode },
     { id: 'attendees', label: 'Attendees', icon: Users },
+    { id: 'team', label: 'Team', icon: Users2 },
     { id: 'polls', label: 'Polls', icon: MessageSquare },
     { id: 'style', label: 'Ticket Style', icon: Palette }
 ];
@@ -136,21 +140,19 @@ export default function EventControlPage() {
                 </button>
             </div>
 
-            {/* Tabs */}
-            <div className="flex gap-2 border-b border-white/10 pb-2">
-                {TABS.map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === tab.id
-                            ? 'bg-white text-black'
-                            : 'text-gray-400 hover:text-white hover:bg-white/5'
-                            }`}
-                    >
-                        <tab.icon size={18} />
-                        {tab.label}
-                    </button>
-                ))}
+            {/* Floating Dock Navigation */}
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+                <Dock
+                    items={TABS.map(tab => ({
+                        icon: <tab.icon size={22} />,
+                        label: tab.label,
+                        active: activeTab === tab.id,
+                        onClick: () => setActiveTab(tab.id)
+                    }))}
+                    magnification={65}
+                    baseItemSize={48}
+                    distance={120}
+                />
             </div>
 
             {/* Tab Content */}
@@ -184,6 +186,10 @@ export default function EventControlPage() {
 
             {activeTab === 'polls' && (
                 <PollsTab eventId={eventId} />
+            )}
+
+            {activeTab === 'team' && (
+                <TeamManagement eventId={eventId} />
             )}
 
             {activeTab === 'style' && (
@@ -410,15 +416,34 @@ function AttendeesTab({ attendees, searchTerm, setSearchTerm, statusFilter, setS
     );
 }
 
-// Ticket Style Tab Component
+// Ticket Style Tab Component - Enhanced Wix-like Builder
 function TicketStyleTab({ eventId, currentStyle }) {
     const [style, setStyle] = useState(currentStyle || {
         template: 'modern',
         primaryColor: '#E23744',
         accentColor: '#ffffff',
-        showLogo: true
+        backgroundColor: '#18181b',
+        headerImage: '',
+        fontFamily: 'Helvetica',
+        borderRadius: '16',
+        showQR: true,
+        showLogo: true,
+        showBorder: true
     });
     const [saving, setSaving] = useState(false);
+
+    // PDF-compatible fonts only
+    const FONTS = [
+        { id: 'Helvetica', label: 'Helvetica (Sans)' },
+        { id: 'Times-Roman', label: 'Times (Serif)' },
+        { id: 'Courier', label: 'Courier (Mono)' }
+    ];
+    const TEMPLATES = [
+        { id: 'modern', label: 'Modern', desc: 'Clean gradient design' },
+        { id: 'minimal', label: 'Minimal', desc: 'Simple & elegant' },
+        { id: 'classic', label: 'Classic', desc: 'Traditional look' },
+        { id: 'bold', label: 'Bold', desc: 'Eye-catching colors' }
+    ];
 
     const handleSave = async () => {
         setSaving(true);
@@ -433,86 +458,154 @@ function TicketStyleTab({ eventId, currentStyle }) {
     };
 
     return (
-        <div className="max-w-2xl space-y-6">
-            <div className="card p-6 space-y-6">
-                <h3 className="text-lg font-semibold text-white">Customize Ticket Design</h3>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-24">
+            {/* Settings Panel */}
+            <div className="space-y-6">
+                <div className="card p-6 space-y-6">
+                    <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                        <Palette size={20} className="text-[#E23744]" />
+                        Customize Ticket Design
+                    </h3>
 
-                {/* Template Selection */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">Template</label>
-                    <div className="grid grid-cols-3 gap-3">
-                        {['modern', 'minimal', 'classic'].map(t => (
-                            <button
-                                key={t}
-                                onClick={() => setStyle({ ...style, template: t })}
-                                className={`p-4 rounded-lg border-2 transition-all capitalize ${style.template === t
-                                    ? 'border-[#E23744] bg-[#E23744]/10'
-                                    : 'border-white/10 hover:border-white/20'
-                                    }`}
-                            >
-                                {t}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Colors */}
-                <div className="grid grid-cols-2 gap-4">
+                    {/* Template Selection */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-400 mb-2">Primary Color</label>
-                        <div className="flex items-center gap-3">
-                            <input
-                                type="color"
-                                value={style.primaryColor}
-                                onChange={e => setStyle({ ...style, primaryColor: e.target.value })}
-                                className="w-12 h-12 rounded-lg cursor-pointer"
-                            />
-                            <input
-                                type="text"
-                                value={style.primaryColor}
-                                onChange={e => setStyle({ ...style, primaryColor: e.target.value })}
-                                className="input flex-1"
-                            />
+                        <label className="block text-sm font-medium text-gray-400 mb-3">Template Style</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            {TEMPLATES.map(t => (
+                                <button
+                                    key={t.id}
+                                    onClick={() => setStyle({ ...style, template: t.id })}
+                                    className={`p-4 rounded-xl border-2 text-left transition-all ${style.template === t.id
+                                        ? 'border-[#E23744] bg-[#E23744]/10'
+                                        : 'border-white/10 hover:border-white/20'
+                                        }`}
+                                >
+                                    <p className="font-medium text-white">{t.label}</p>
+                                    <p className="text-xs text-gray-500">{t.desc}</p>
+                                </button>
+                            ))}
                         </div>
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-400 mb-2">Accent Color</label>
-                        <div className="flex items-center gap-3">
-                            <input
-                                type="color"
-                                value={style.accentColor}
-                                onChange={e => setStyle({ ...style, accentColor: e.target.value })}
-                                className="w-12 h-12 rounded-lg cursor-pointer"
-                            />
-                            <input
-                                type="text"
-                                value={style.accentColor}
-                                onChange={e => setStyle({ ...style, accentColor: e.target.value })}
-                                className="input flex-1"
-                            />
-                        </div>
-                    </div>
-                </div>
 
-                {/* Preview */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">Preview</label>
-                    <div
-                        className="rounded-xl p-6 border border-white/10"
-                        style={{ backgroundColor: style.primaryColor + '20' }}
-                    >
-                        <div className="flex justify-between items-start">
+                    {/* Colors */}
+                    <div className="space-y-4">
+                        <label className="block text-sm font-medium text-gray-400">Colors</label>
+                        <div className="grid grid-cols-3 gap-3">
                             <div>
-                                <h4 className="text-xl font-bold" style={{ color: style.primaryColor }}>Event Ticket</h4>
-                                <p className="text-sm text-gray-400">Your event name here</p>
+                                <label className="text-xs text-gray-500 mb-1 block">Primary</label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="color"
+                                        value={style.primaryColor}
+                                        onChange={e => setStyle({ ...style, primaryColor: e.target.value })}
+                                        className="w-10 h-10 rounded-lg cursor-pointer border-0"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={style.primaryColor}
+                                        onChange={e => setStyle({ ...style, primaryColor: e.target.value })}
+                                        className="input text-xs flex-1"
+                                    />
+                                </div>
                             </div>
-                            <div
-                                className="w-16 h-16 rounded-lg flex items-center justify-center"
-                                style={{ backgroundColor: style.primaryColor }}
-                            >
-                                <QrCode size={32} style={{ color: style.accentColor }} />
+                            <div>
+                                <label className="text-xs text-gray-500 mb-1 block">Accent</label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="color"
+                                        value={style.accentColor}
+                                        onChange={e => setStyle({ ...style, accentColor: e.target.value })}
+                                        className="w-10 h-10 rounded-lg cursor-pointer border-0"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={style.accentColor}
+                                        onChange={e => setStyle({ ...style, accentColor: e.target.value })}
+                                        className="input text-xs flex-1"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-xs text-gray-500 mb-1 block">Background</label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="color"
+                                        value={style.backgroundColor}
+                                        onChange={e => setStyle({ ...style, backgroundColor: e.target.value })}
+                                        className="w-10 h-10 rounded-lg cursor-pointer border-0"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={style.backgroundColor}
+                                        onChange={e => setStyle({ ...style, backgroundColor: e.target.value })}
+                                        className="input text-xs flex-1"
+                                    />
+                                </div>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Font & Border Radius */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-2">Font</label>
+                            <select
+                                value={style.fontFamily}
+                                onChange={e => setStyle({ ...style, fontFamily: e.target.value })}
+                                className="input w-full"
+                            >
+                                {FONTS.map(f => (
+                                    <option key={f.id} value={f.id}>{f.label}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-2">Corners</label>
+                            <input
+                                type="range"
+                                min="0"
+                                max="32"
+                                value={style.borderRadius}
+                                onChange={e => setStyle({ ...style, borderRadius: e.target.value })}
+                                className="w-full accent-[#E23744]"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">{style.borderRadius}px</p>
+                        </div>
+                    </div>
+
+                    {/* Header Image */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-400 mb-2">Header Background Image (URL)</label>
+                        <input
+                            type="url"
+                            value={style.headerImage || ''}
+                            onChange={e => setStyle({ ...style, headerImage: e.target.value })}
+                            placeholder="https://example.com/image.jpg"
+                            className="input w-full"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Optional: Use an image instead of solid color for header</p>
+                    </div>
+
+                    {/* Toggles */}
+                    <div className="space-y-3">
+                        <label className="block text-sm font-medium text-gray-400 mb-2">Elements</label>
+                        {[
+                            { key: 'showQR', label: 'Show QR Code' },
+                            { key: 'showLogo', label: 'Show Event Logo' },
+                            { key: 'showBorder', label: 'Show Border' }
+                        ].map(toggle => (
+                            <label key={toggle.key} className="flex items-center gap-3 cursor-pointer group">
+                                <div
+                                    className={`w-11 h-6 rounded-full transition-colors relative ${style[toggle.key] ? 'bg-[#E23744]' : 'bg-white/20'
+                                        }`}
+                                    onClick={() => setStyle({ ...style, [toggle.key]: !style[toggle.key] })}
+                                >
+                                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${style[toggle.key] ? 'left-6' : 'left-1'
+                                        }`} />
+                                </div>
+                                <span className="text-sm text-gray-300 group-hover:text-white">{toggle.label}</span>
+                            </label>
+                        ))}
                     </div>
                 </div>
 
@@ -521,8 +614,75 @@ function TicketStyleTab({ eventId, currentStyle }) {
                     disabled={saving}
                     className="btn btn-primary w-full"
                 >
-                    {saving ? 'Saving...' : 'Save Changes'}
+                    {saving ? 'Saving...' : 'Save Ticket Design'}
                 </button>
+            </div>
+
+            {/* Live Preview */}
+            <div className="lg:sticky lg:top-6">
+                <label className="block text-sm font-medium text-gray-400 mb-3">Live Preview</label>
+                <div
+                    className="p-6 transition-all"
+                    style={{
+                        backgroundColor: style.backgroundColor,
+                        borderRadius: `${style.borderRadius}px`,
+                        border: style.showBorder ? `2px solid ${style.primaryColor}40` : 'none',
+                        fontFamily: style.fontFamily
+                    }}
+                >
+                    <div className="flex justify-between items-start mb-6">
+                        <div>
+                            <h4 className="text-2xl font-bold" style={{ color: style.primaryColor }}>
+                                Tech Summit 2026
+                            </h4>
+                            <p className="text-sm mt-1" style={{ color: style.accentColor + '99' }}>
+                                Annual Developer Conference
+                            </p>
+                        </div>
+                        {style.showLogo && (
+                            <div
+                                className="w-12 h-12 rounded-lg flex items-center justify-center text-xl font-bold"
+                                style={{ backgroundColor: style.primaryColor, color: style.accentColor }}
+                            >
+                                O
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mb-6" style={{ color: style.accentColor }}>
+                        <div>
+                            <p className="text-xs uppercase tracking-wider opacity-60">Date</p>
+                            <p className="font-semibold">Jan 15, 2026</p>
+                        </div>
+                        <div>
+                            <p className="text-xs uppercase tracking-wider opacity-60">Time</p>
+                            <p className="font-semibold">10:00 AM</p>
+                        </div>
+                        <div>
+                            <p className="text-xs uppercase tracking-wider opacity-60">Venue</p>
+                            <p className="font-semibold">Convention Center</p>
+                        </div>
+                        <div>
+                            <p className="text-xs uppercase tracking-wider opacity-60">Ticket #</p>
+                            <p className="font-semibold">#T24001</p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-4" style={{ borderTop: `1px dashed ${style.primaryColor}40` }}>
+                        <div style={{ color: style.accentColor }}>
+                            <p className="text-xs uppercase tracking-wider opacity-60">Attendee</p>
+                            <p className="font-semibold">John Doe</p>
+                        </div>
+                        {style.showQR && (
+                            <div
+                                className="w-20 h-20 rounded-lg flex items-center justify-center"
+                                style={{ backgroundColor: style.primaryColor }}
+                            >
+                                <QrCode size={48} style={{ color: style.accentColor }} />
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
         </div>
     );

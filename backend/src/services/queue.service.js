@@ -1,6 +1,7 @@
 import { Queue, Worker } from 'bullmq';
 import { generateTicketPDF, createTicketRecord } from './ticket.service.js';
 import { sendTicketEmail } from './email.service.js';
+import { sendBookingNotifications } from './twilio.service.js';
 import prisma from '../config/db.js';
 
 let connection = null;
@@ -46,10 +47,19 @@ async function initializeRedis() {
           }
 
           const ticket = await generateTicketPDF(order);
+          const event = order.registration.event;
+          const formResponse = order.registration.formResponse;
 
           await emailQueue.add('send-ticket-email', {
             ticketId: ticket.id,
-            email: order.registration.userEmail
+            email: order.registration.userEmail,
+            phone: formResponse.phone || formResponse.phoneNumber || null,
+            eventDetails: {
+              eventTitle: event.title,
+              location: event.location,
+              dateTime: new Date(event.startTime).toLocaleString(),
+              ticketId: ticket.id.substring(0, 8).toUpperCase()
+            }
           });
 
           console.log(`Ticket generated successfully for order: ${orderId}`);
@@ -66,12 +76,23 @@ async function initializeRedis() {
     const emailWorker = new Worker(
       'email-sending',
       async (job) => {
-        const { ticketId, email } = job.data;
+        const { ticketId, email, phone, eventDetails } = job.data;
         console.log(`Sending ticket email to: ${email}`);
 
         try {
           await sendTicketEmail(ticketId, email);
           console.log(`Ticket email sent successfully to: ${email}`);
+
+          // Send SMS/WhatsApp notifications if phone number is available
+          if (phone && eventDetails) {
+            try {
+              await sendBookingNotifications(phone, eventDetails);
+              console.log(`SMS/WhatsApp notifications sent to: ${phone}`);
+            } catch (twilioErr) {
+              console.warn('Twilio notifications failed:', twilioErr.message);
+            }
+          }
+
           return { success: true };
         } catch (error) {
           console.error('Email sending failed:', error);
@@ -143,12 +164,31 @@ export async function enqueueTicketGeneration(orderId) {
           const ticket = await createTicketRecord(order);
           console.log(`Ticket record created: ${ticket.id}`);
 
+          const event = order.registration.event;
+          const formResponse = order.registration.formResponse;
+
           // Try to send email (will generate PDF attachment on demand)
           try {
             await sendTicketEmail(ticket.id, order.registration.userEmail);
             console.log(`Email sent to: ${order.registration.userEmail}`);
           } catch (emailErr) {
             console.warn('Email sending failed:', emailErr.message);
+          }
+
+          // Send SMS/WhatsApp notifications
+          const phone = formResponse.phone || formResponse.phoneNumber;
+          if (phone) {
+            try {
+              await sendBookingNotifications(phone, {
+                eventTitle: event.title,
+                location: event.location,
+                dateTime: new Date(event.startTime).toLocaleString(),
+                ticketId: ticket.id.substring(0, 8).toUpperCase()
+              });
+              console.log(`SMS/WhatsApp notifications sent to: ${phone}`);
+            } catch (twilioErr) {
+              console.warn('Twilio notifications failed:', twilioErr.message);
+            }
           }
         }
       } catch (error) {

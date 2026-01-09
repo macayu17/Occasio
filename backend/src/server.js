@@ -16,6 +16,7 @@ import waitlistRoutes from './routes/waitlist.routes.js';
 import discountRoutes from './routes/discount.routes.js';
 import reviewRoutes from './routes/review.routes.js';
 import pollRoutes from './routes/poll.routes.js';
+import pushRoutes from './routes/push.routes.js';
 
 dotenv.config();
 
@@ -83,6 +84,7 @@ app.use('/api/tickets', ticketRoutes);
 app.use('/api/discounts', discountRoutes);
 app.use('/api', reviewRoutes);
 app.use('/api', pollRoutes);
+app.use('/api/push', pushRoutes);
 
 // Health check with version for deployment verification
 app.get('/health', (req, res) => {

@@ -562,14 +562,14 @@ router.get('/financials', async (req, res) => {
     events.forEach(event => {
       event.registrations.forEach(reg => {
         reg.orders.forEach(order => {
-          totalRevenue += order.totalAmount;
-          totalTickets += order.quantity || 1;
+          totalRevenue += order.amountCents || 0;
+          totalTickets += 1;
 
           // Monthly breakdown
           const orderDate = new Date(order.createdAt);
           const monthKey = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`;
           if (monthlyRevenue[monthKey] !== undefined) {
-            monthlyRevenue[monthKey] += order.totalAmount;
+            monthlyRevenue[monthKey] += order.amountCents || 0;
           }
         });
       });
@@ -993,6 +993,263 @@ router.put('/events/:id/ticket-style', async (req, res) => {
   } catch (error) {
     console.error('Update ticket style error:', error);
     res.status(500).json({ error: 'Failed to update ticket style' });
+  }
+});
+
+// ============================================
+// ENHANCED ANALYTICS ENDPOINTS
+// ============================================
+
+// Get conversion funnel data for an event
+router.get('/events/:id/analytics/funnel', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    if (event.organizerId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Get all registrations with their orders and tickets
+    const registrations = await prisma.registration.findMany({
+      where: { eventId: id },
+      include: {
+        orders: {
+          include: { ticket: true }
+        }
+      }
+    });
+
+    // Calculate funnel stages
+    const totalRegistrations = registrations.length;
+    const paidRegistrations = registrations.filter(r => r.status === 'PAID' || r.status === 'CONFIRMED').length;
+    const ticketsIssued = registrations.flatMap(r => r.orders.filter(o => o.ticket)).length;
+    const checkedIn = registrations.flatMap(r =>
+      r.orders.filter(o => o.ticket && o.ticket.checkedInAt)
+    ).length;
+
+    // Calculate drop-off percentages
+    const funnel = [
+      { stage: 'Registrations', count: totalRegistrations, percentage: 100 },
+      {
+        stage: 'Payments',
+        count: paidRegistrations,
+        percentage: totalRegistrations > 0 ? Math.round((paidRegistrations / totalRegistrations) * 100) : 0,
+        dropOff: totalRegistrations > 0 ? Math.round(((totalRegistrations - paidRegistrations) / totalRegistrations) * 100) : 0
+      },
+      {
+        stage: 'Tickets Issued',
+        count: ticketsIssued,
+        percentage: totalRegistrations > 0 ? Math.round((ticketsIssued / totalRegistrations) * 100) : 0,
+        dropOff: paidRegistrations > 0 ? Math.round(((paidRegistrations - ticketsIssued) / paidRegistrations) * 100) : 0
+      },
+      {
+        stage: 'Check-ins',
+        count: checkedIn,
+        percentage: totalRegistrations > 0 ? Math.round((checkedIn / totalRegistrations) * 100) : 0,
+        dropOff: ticketsIssued > 0 ? Math.round(((ticketsIssued - checkedIn) / ticketsIssued) * 100) : 0
+      }
+    ];
+
+    res.json({ funnel, totalRegistrations, paidRegistrations, ticketsIssued, checkedIn });
+  } catch (error) {
+    console.error('Get funnel analytics error:', error);
+    res.status(500).json({ error: 'Failed to fetch funnel data' });
+  }
+});
+
+// Get real-time attendance stats for an event
+router.get('/events/:id/analytics/realtime', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    if (event.organizerId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Get ticket stats
+    const tickets = await prisma.ticket.findMany({
+      where: {
+        order: {
+          registration: { eventId: id },
+          status: 'PAID'
+        }
+      },
+      select: {
+        checkedInAt: true,
+        checkedOutAt: true
+      }
+    });
+
+    const totalTickets = tickets.length;
+    const checkedIn = tickets.filter(t => t.checkedInAt).length;
+    const checkedOut = tickets.filter(t => t.checkedOutAt).length;
+    const currentlyInside = checkedIn - checkedOut;
+    const notYetArrived = totalTickets - checkedIn;
+
+    // Check-in rate per hour (last 6 hours)
+    const now = new Date();
+    const hourlyData = [];
+    for (let i = 5; i >= 0; i--) {
+      const hourStart = new Date(now);
+      hourStart.setHours(now.getHours() - i, 0, 0, 0);
+      const hourEnd = new Date(hourStart);
+      hourEnd.setHours(hourStart.getHours() + 1);
+
+      const count = tickets.filter(t => {
+        if (!t.checkedInAt) return false;
+        const checkIn = new Date(t.checkedInAt);
+        return checkIn >= hourStart && checkIn < hourEnd;
+      }).length;
+
+      hourlyData.push({
+        hour: hourStart.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        checkIns: count
+      });
+    }
+
+    // Calculate peak attendance (max currently inside at any point)
+    // Simplified: just use current as peak for now
+    const peakAttendance = currentlyInside;
+
+    res.json({
+      totalTickets,
+      checkedIn,
+      checkedOut,
+      currentlyInside,
+      notYetArrived,
+      checkInRate: totalTickets > 0 ? Math.round((checkedIn / totalTickets) * 100) : 0,
+      peakAttendance,
+      hourlyData,
+      capacity: event.capacity,
+      capacityUsed: Math.round((currentlyInside / event.capacity) * 100)
+    });
+  } catch (error) {
+    console.error('Get realtime analytics error:', error);
+    res.status(500).json({ error: 'Failed to fetch realtime data' });
+  }
+});
+
+// ============================================
+// TEAM MANAGEMENT ENDPOINTS
+// ============================================
+
+// Get team members for an event
+router.get('/events/:id/team', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    if (event.organizerId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const teamMembers = await prisma.teamMember.findMany({
+      where: { eventId: id },
+      orderBy: { invitedAt: 'desc' }
+    });
+
+    res.json(teamMembers);
+  } catch (error) {
+    console.error('Get team members error:', error);
+    res.status(500).json({ error: 'Failed to fetch team members' });
+  }
+});
+
+// Invite a team member
+router.post('/events/:id/team', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email, name, role } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    if (event.organizerId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Check if already a team member
+    const existing = await prisma.teamMember.findUnique({
+      where: { eventId_email: { eventId: id, email } }
+    });
+
+    if (existing) {
+      return res.status(400).json({ error: 'User is already a team member' });
+    }
+
+    const teamMember = await prisma.teamMember.create({
+      data: {
+        eventId: id,
+        email,
+        name: name || null,
+        role: role || 'STAFF'
+      }
+    });
+
+    res.status(201).json(teamMember);
+  } catch (error) {
+    console.error('Invite team member error:', error);
+    res.status(500).json({ error: 'Failed to invite team member' });
+  }
+});
+
+// Update team member role
+router.put('/events/:id/team/:memberId', async (req, res) => {
+  try {
+    const { id, memberId } = req.params;
+    const { role } = req.body;
+
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    if (event.organizerId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const teamMember = await prisma.teamMember.update({
+      where: { id: memberId },
+      data: { role }
+    });
+
+    res.json(teamMember);
+  } catch (error) {
+    console.error('Update team member error:', error);
+    res.status(500).json({ error: 'Failed to update team member' });
+  }
+});
+
+// Remove team member
+router.delete('/events/:id/team/:memberId', async (req, res) => {
+  try {
+    const { id, memberId } = req.params;
+
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    if (event.organizerId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    await prisma.teamMember.delete({
+      where: { id: memberId }
+    });
+
+    res.json({ success: true, message: 'Team member removed' });
+  } catch (error) {
+    console.error('Remove team member error:', error);
+    res.status(500).json({ error: 'Failed to remove team member' });
   }
 });
 
