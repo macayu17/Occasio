@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, FileText, Users, Eye, EyeOff, BarChart3, MoreVertical, MapPin, CalendarDays, Tag, Copy, Send } from 'lucide-react';
+import { Plus, Edit, Trash2, FileText, Users, Eye, EyeOff, BarChart3, MoreVertical, MapPin, CalendarDays, Tag, Copy, Send, Settings } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -58,6 +58,9 @@ export default function EventListPage() {
         break;
       case 'analytics':
         navigate(`/admin/events/${eventId}/analytics`);
+        break;
+      case 'control':
+        navigate(`/admin/events/${eventId}/control`);
         break;
       case 'discounts':
         navigate(`/admin/events/${eventId}/discounts`);
@@ -231,6 +234,9 @@ export default function EventListPage() {
                           <div className="border-t border-white/10 my-1"></div>
                           <button onClick={() => handleAction('registrations', event.id)} className="w-full text-left px-4 py-2.5 hover:bg-white/10 text-white flex items-center gap-3">
                             <Users size={14} /> Registrations
+                          </button>
+                          <button onClick={() => handleAction('control', event.id)} className="w-full text-left px-4 py-2.5 hover:bg-white/10 text-[#E23744] flex items-center gap-3 font-medium">
+                            <Settings size={14} /> Control Center
                           </button>
                           <button onClick={() => handleAction('analytics', event.id)} className="w-full text-left px-4 py-2.5 hover:bg-white/10 text-white flex items-center gap-3">
                             <BarChart3 size={14} /> Analytics

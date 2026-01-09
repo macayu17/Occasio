@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Calendar, MapPin, DollarSign, Users, ArrowLeft, Loader2 } from 'lucide-react';
+import { Calendar, MapPin, DollarSign, Users, ArrowLeft, Loader2, Tag } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import api, { getImageUrl } from '../../utils/api';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import ShareButton from '../../components/ShareButton';
+import ShareButtons from '../../components/ShareButtons';
+import CountdownTimer from '../../components/CountdownTimer';
 import ReviewsSection from '../../components/ReviewsSection';
 
 export default function EventDetailsPage() {
@@ -124,7 +126,30 @@ export default function EventDetailsPage() {
           {/* Sidebar (Right) */}
           <div className="lg:col-span-1">
             <div className="sticky top-24 space-y-6">
+              {/* Countdown Timer */}
+              {new Date(event.startTime) > new Date() && (
+                <CountdownTimer
+                  targetDate={event.startTime}
+                  label="Event starts in"
+                />
+              )}
+
               <div className="card space-y-6 border-[#E23744]/20 ring-1 ring-[#E23744]/20 shadow-[0_0_50px_-15px_rgba(226,55,68,0.15)]">
+                {/* Category Badge */}
+                {event.category && event.category !== 'OTHER' && (
+                  <div className="flex items-center gap-2">
+                    <Tag size={14} className="text-gray-500" />
+                    <span className="text-xs font-medium text-gray-400 bg-white/5 px-3 py-1 rounded-full">
+                      {event.category}
+                    </span>
+                    {event.tags?.length > 0 && event.tags.slice(0, 2).map(tag => (
+                      <span key={tag} className="text-xs text-gray-500 bg-white/5 px-2 py-1 rounded-full">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
                 {/* Price & Action */}
                 <div className="flex items-center justify-between">
                   <div>

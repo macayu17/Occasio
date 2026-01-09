@@ -4,8 +4,11 @@
 
 @layer base {
   body {
-    /* Premium Dark Theme Base */
-    @apply bg-[#09090b] text-[#fafafa] antialiased select-none;
+    /* Premium Dark Theme Base with Inter Font */
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    @apply bg-[#09090b] text-[#fafafa] antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   /* Custom Scrollbar for Dark Theme */

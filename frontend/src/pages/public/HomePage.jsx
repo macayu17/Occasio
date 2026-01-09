@@ -1,26 +1,54 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, MapPin, Calendar, ArrowRight, Sparkles } from 'lucide-react';
+import { Search, MapPin, Calendar, ArrowRight, Sparkles, Users } from 'lucide-react';
 import api, { getImageUrl } from '../../utils/api';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import FloatingLines from '../../components/FloatingLines';
 
+// Category definitions
+const CATEGORIES = [
+  { value: 'ALL', label: 'All Events' },
+  { value: 'MUSIC', label: 'Music' },
+  { value: 'TECH', label: 'Tech' },
+  { value: 'SPORTS', label: 'Sports' },
+  { value: 'ARTS', label: 'Arts' },
+  { value: 'BUSINESS', label: 'Business' },
+  { value: 'EDUCATION', label: 'Education' },
+  { value: 'FOOD', label: 'Food' },
+  { value: 'HEALTH', label: 'Health' },
+  { value: 'SOCIAL', label: 'Social' }
+];
+
 export default function HomePage() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('All Events');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
 
-  const categories = ['All Events', 'Music', 'Workshops', 'Meetups', 'Sports', 'Tech', 'Art'];
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
+  // Fetch events when filters change
   useEffect(() => {
     fetchEvents();
-  }, []);
+  }, [debouncedSearch, categoryFilter]);
 
   const fetchEvents = async () => {
     try {
-      const response = await api.get('/events');
+      setLoading(true);
+      const params = new URLSearchParams();
+      params.append('upcoming', 'true');
+      if (debouncedSearch) params.append('search', debouncedSearch);
+      if (categoryFilter && categoryFilter !== 'ALL') params.append('category', categoryFilter);
+
+      const response = await api.get(`/events?${params.toString()}`);
       setEvents(response.data);
     } catch (error) {
       toast.error('Failed to fetch events');
@@ -28,19 +56,6 @@ export default function HomePage() {
       setLoading(false);
     }
   };
-
-  // Filter events by search term and category
-  const filteredEvents = events.filter(event => {
-    const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      event.location.toLowerCase().includes(searchTerm.toLowerCase());
-
-    const matchesCategory = categoryFilter === 'All Events' ||
-      event.title.toLowerCase().includes(categoryFilter.toLowerCase()) ||
-      event.description?.toLowerCase().includes(categoryFilter.toLowerCase()) ||
-      event.location.toLowerCase().includes(categoryFilter.toLowerCase());
-
-    return matchesSearch && matchesCategory;
-  });
 
   return (
     <div className="min-h-screen pb-20 bg-[#09090b]">
@@ -110,13 +125,17 @@ export default function HomePage() {
           </h2>
 
           <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-            {categories.map(category => (
-              <FilterPill
-                key={category}
-                label={category}
-                active={categoryFilter === category}
-                onClick={() => setCategoryFilter(category)}
-              />
+            {CATEGORIES.map(cat => (
+              <button
+                key={cat.value}
+                onClick={() => setCategoryFilter(cat.value)}
+                className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${categoryFilter === cat.value
+                  ? 'bg-white text-black shadow-lg shadow-white/10'
+                  : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/5'
+                  }`}
+              >
+                {cat.label}
+              </button>
             ))}
           </div>
         </div>
@@ -125,7 +144,7 @@ export default function HomePage() {
           <div className="flex justify-center py-32">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-white border-r-2 border-white/20"></div>
           </div>
-        ) : filteredEvents.length === 0 ? (
+        ) : events.length === 0 ? (
           <div className="text-center py-32 glass-card rounded-3xl border border-white/5 bg-[#121212]/50">
             <div className="inline-flex p-4 rounded-full bg-white/5 mb-4">
               <Search size={32} className="text-gray-500" />

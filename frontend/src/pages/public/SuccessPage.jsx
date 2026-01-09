@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
-import { CheckCircle, Mail, Calendar, Download } from 'lucide-react';
+import { CheckCircle, Mail, Calendar, Download, Share2 } from 'lucide-react';
+import ShareButtons from '../../components/ShareButtons';
 
 // Get API URL with fallback
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -65,6 +66,20 @@ export default function SuccessPage() {
             </Link>
           </div>
 
+          {/* Share Section */}
+          <div className="mt-8 pt-6 border-t border-gray-200">
+            <p className="text-sm text-gray-600 mb-4 flex items-center justify-center gap-2">
+              <Share2 size={16} />
+              Share this event with friends
+            </p>
+            <div className="flex justify-center">
+              <ShareButtons
+                title="Just booked my ticket! Check out this event"
+                url={state?.eventId ? `${window.location.origin}/events/${state.eventId}` : window.location.origin}
+              />
+            </div>
+          </div>
+
           <p className="text-sm text-gray-500 mt-6">
             Need help? Contact us at support@eventmanagement.com
           </p>
@@ -73,3 +88,4 @@ export default function SuccessPage() {
     </div>
   );
 }
+

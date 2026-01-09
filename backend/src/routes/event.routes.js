@@ -3,22 +3,40 @@ import prisma from '../config/db.js';
 
 const router = express.Router();
 
-// Get all published events
+// Get all published events with filters
 router.get('/', async (req, res) => {
   try {
-    const { search, upcoming } = req.query;
+    const { search, upcoming, category, tag, startDate, endDate } = req.query;
 
     const where = {
       published: true,
+      // Text search across title, description, location
       ...(search && {
         OR: [
           { title: { contains: search, mode: 'insensitive' } },
           { description: { contains: search, mode: 'insensitive' } },
-          { location: { contains: search, mode: 'insensitive' } }
+          { location: { contains: search, mode: 'insensitive' } },
+          { tags: { has: search } }
         ]
       }),
+      // Filter by category
+      ...(category && category !== 'ALL' && {
+        category: category
+      }),
+      // Filter by tag
+      ...(tag && {
+        tags: { has: tag }
+      }),
+      // Upcoming events only
       ...(upcoming === 'true' && {
         startTime: { gte: new Date() }
+      }),
+      // Date range filter
+      ...(startDate && {
+        startTime: { gte: new Date(startDate) }
+      }),
+      ...(endDate && {
+        endTime: { lte: new Date(endDate) }
       })
     };
 
@@ -35,12 +53,21 @@ router.get('/', async (req, res) => {
         capacity: true,
         priceCents: true,
         currency: true,
+        category: true,
+        tags: true,
         posterUrl: true,
         createdAt: true,
         organizer: {
           select: {
             name: true,
             email: true
+          }
+        },
+        _count: {
+          select: {
+            registrations: {
+              where: { status: { in: ['PAID', 'CONFIRMED'] } }
+            }
           }
         }
       },
@@ -52,6 +79,23 @@ router.get('/', async (req, res) => {
     console.error('Get events error:', error);
     res.status(500).json({ error: 'Failed to fetch events' });
   }
+});
+
+// Get available categories
+router.get('/meta/categories', async (req, res) => {
+  const categories = [
+    { value: 'MUSIC', label: 'Music & Concerts' },
+    { value: 'TECH', label: 'Tech & Innovation' },
+    { value: 'SPORTS', label: 'Sports & Fitness' },
+    { value: 'ARTS', label: 'Arts & Culture' },
+    { value: 'BUSINESS', label: 'Business & Networking' },
+    { value: 'EDUCATION', label: 'Education & Workshops' },
+    { value: 'FOOD', label: 'Food & Drinks' },
+    { value: 'HEALTH', label: 'Health & Wellness' },
+    { value: 'SOCIAL', label: 'Social & Community' },
+    { value: 'OTHER', label: 'Other' }
+  ];
+  res.json(categories);
 });
 
 import { createEvent } from 'ics';

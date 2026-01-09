@@ -26,6 +26,7 @@ import RegistrationsPage from './pages/admin/RegistrationsPage';
 import AnalyticsPage from './pages/admin/AnalyticsPage';
 import FinancialsPage from './pages/admin/FinancialsPage';
 import DiscountCodesPage from './pages/admin/DiscountCodesPage';
+import EventControlPage from './pages/admin/EventControlPage';
 
 // Layout
 import PublicLayout from './layouts/PublicLayout';
@@ -69,9 +70,9 @@ function App() {
             <Route path="/admin/events" element={<EventListPage />} />
             <Route path="/admin/events/create" element={<CreateEventPage />} />
             <Route path="/admin/events/:id/edit" element={<EditEventPage />} />
+            <Route path="/admin/events/:eventId/control" element={<EventControlPage />} />
             <Route path="/admin/events/:id/form" element={<FormBuilderPage />} />
             <Route path="/admin/events/:id/registrations" element={<RegistrationsPage />} />
-            <Route path="/admin/events/:id/analytics" element={<AnalyticsPage />} />
             <Route path="/admin/events/:id/analytics" element={<AnalyticsPage />} />
             <Route path="/admin/events/:id/discounts" element={<DiscountCodesPage />} />
             <Route path="/admin/financials" element={<FinancialsPage />} />

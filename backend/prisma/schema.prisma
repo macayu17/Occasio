@@ -33,23 +33,42 @@ enum EventType {
   RSVP
 }
 
+enum EventCategory {
+  MUSIC
+  TECH
+  SPORTS
+  ARTS
+  BUSINESS
+  EDUCATION
+  FOOD
+  HEALTH
+  SOCIAL
+  OTHER
+}
+
 model Event {
-  id          String    @id @default(uuid())
-  organizerId String    @map("organizer_id")
+  id          String        @id @default(uuid())
+  organizerId String        @map("organizer_id")
   title       String
-  slug        String    @unique
-  description String    @db.Text
+  slug        String        @unique
+  description String        @db.Text
   location    String
-  startTime   DateTime  @map("start_time")
-  endTime     DateTime  @map("end_time")
+  startTime   DateTime      @map("start_time")
+  endTime     DateTime      @map("end_time")
   capacity    Int       
-  priceCents  Int       @default(0) @map("price_cents")
-  currency    String    @default("INR")
-  type        EventType @default(TICKETED)
-  posterUrl   String?   @map("poster_url")
-  published   Boolean   @default(false)
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  priceCents  Int           @default(0) @map("price_cents")
+  currency    String        @default("INR")
+  type        EventType     @default(TICKETED)
+  category    EventCategory @default(OTHER)
+  tags        String[]      @default([])
+  posterUrl   String?       @map("poster_url")
+  published   Boolean       @default(false)
+  
+  // Ticket styling options (JSON: template, primaryColor, accentColor, logoUrl)
+  ticketStyle Json?         @map("ticket_style")
+  
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
   
   organizer      User            @relation(fields: [organizerId], references: [id], onDelete: Cascade)
   form           Form?
@@ -133,7 +152,12 @@ model Ticket {
   issuedAt     DateTime  @default(now()) @map("issued_at")
   revoked      Boolean   @default(false)
   validUntil   DateTime? @map("valid_until")
-  scannedAt    DateTime? @map("scanned_at")
+  
+  // Check-in/out tracking
+  scannedAt    DateTime? @map("scanned_at")        // Legacy: first scan time
+  checkedInAt  DateTime? @map("checked_in_at")     // Check-in timestamp
+  checkedOutAt DateTime? @map("checked_out_at")    // Check-out timestamp  
+  checkedInBy  String?   @map("checked_in_by")     // User ID who checked in
   
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
   

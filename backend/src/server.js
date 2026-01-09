@@ -82,9 +82,13 @@ app.use('/api/tickets', ticketRoutes);
 app.use('/api/discounts', discountRoutes);
 app.use('/api', reviewRoutes);
 
-// Health check
+// Health check with version for deployment verification
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'OK',
+    version: '2026-01-09-v2',  // Update this to verify deployment
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Error handling middleware

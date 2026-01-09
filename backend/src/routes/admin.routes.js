@@ -21,7 +21,9 @@ router.post('/events',
     body('startTime').isISO8601(),
     body('endTime').isISO8601(),
     body('capacity').isInt({ min: 1 }),
-    body('priceCents').isInt({ min: 0 })
+    body('priceCents').isInt({ min: 0 }),
+    body('category').optional().isIn(['MUSIC', 'TECH', 'SPORTS', 'ARTS', 'BUSINESS', 'EDUCATION', 'FOOD', 'HEALTH', 'SOCIAL', 'OTHER']),
+    body('tags').optional().isArray()
   ],
   async (req, res) => {
     try {
@@ -38,7 +40,9 @@ router.post('/events',
         endTime,
         capacity,
         priceCents,
-        currency
+        currency,
+        category,
+        tags
       } = req.body;
 
       // Generate slug from title
@@ -57,7 +61,9 @@ router.post('/events',
           endTime: new Date(endTime),
           capacity,
           priceCents,
-          currency: currency || 'INR'
+          currency: currency || 'INR',
+          category: category || 'OTHER',
+          tags: tags || []
         },
         include: {
           organizer: {
@@ -608,4 +614,387 @@ router.get('/financials', async (req, res) => {
   }
 });
 
+// Clone an event
+router.post('/events/:id/clone', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const originalEvent = await prisma.event.findUnique({
+      where: { id },
+      include: {
+        form: true
+      }
+    });
+
+    if (!originalEvent) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    if (originalEvent.organizerId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Generate new slug
+    const newTitle = `${originalEvent.title} (Copy)`;
+    const newSlug = newTitle.toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') + '-' + Date.now();
+
+    // Clone the event
+    const clonedEvent = await prisma.event.create({
+      data: {
+        organizerId: req.user.id,
+        title: newTitle,
+        slug: newSlug,
+        description: originalEvent.description,
+        location: originalEvent.location,
+        startTime: originalEvent.startTime,
+        endTime: originalEvent.endTime,
+        capacity: originalEvent.capacity,
+        priceCents: originalEvent.priceCents,
+        currency: originalEvent.currency,
+        type: originalEvent.type,
+        category: originalEvent.category,
+        tags: originalEvent.tags,
+        posterUrl: originalEvent.posterUrl,
+        published: false // Always unpublished by default
+      },
+      include: {
+        organizer: {
+          select: { name: true, email: true }
+        }
+      }
+    });
+
+    // Clone the form if it exists
+    if (originalEvent.form) {
+      await prisma.form.create({
+        data: {
+          eventId: clonedEvent.id,
+          schemaJson: originalEvent.form.schemaJson
+        }
+      });
+    }
+
+    res.status(201).json(clonedEvent);
+  } catch (error) {
+    console.error('Clone event error:', error);
+    res.status(500).json({ error: 'Failed to clone event' });
+  }
+});
+
+// ============================================
+// CHECK-IN MANAGEMENT ENDPOINTS
+// ============================================
+
+// Get all attendees for an event with check-in status
+router.get('/events/:id/attendees', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { search, status } = req.query;
+
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    if (event.organizerId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Build filter conditions
+    let ticketWhere = {};
+    if (status === 'checked-in') ticketWhere.checkedInAt = { not: null };
+    if (status === 'not-checked-in') ticketWhere.checkedInAt = null;
+    if (status === 'checked-out') ticketWhere.checkedOutAt = { not: null };
+
+    const registrations = await prisma.registration.findMany({
+      where: {
+        eventId: id,
+        status: { in: ['PAID', 'CONFIRMED'] },
+        ...(search && {
+          OR: [
+            { userEmail: { contains: search, mode: 'insensitive' } },
+            { formResponse: { path: ['name'], string_contains: search } }
+          ]
+        })
+      },
+      include: {
+        orders: {
+          where: { status: 'PAID' },
+          include: {
+            ticket: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Flatten to attendees list with check-in info
+    const attendees = registrations.flatMap(reg =>
+      reg.orders
+        .filter(o => o.ticket)
+        .filter(o => {
+          if (status === 'checked-in') return o.ticket.checkedInAt;
+          if (status === 'not-checked-in') return !o.ticket.checkedInAt;
+          if (status === 'checked-out') return o.ticket.checkedOutAt;
+          return true;
+        })
+        .map(order => ({
+          id: order.ticket.id,
+          ticketId: order.ticket.id,
+          orderId: order.id,
+          name: reg.formResponse?.name || 'N/A',
+          email: reg.userEmail,
+          phone: reg.formResponse?.phone || null,
+          checkedInAt: order.ticket.checkedInAt,
+          checkedOutAt: order.ticket.checkedOutAt,
+          checkedInBy: order.ticket.checkedInBy,
+          issuedAt: order.ticket.issuedAt,
+          revoked: order.ticket.revoked
+        }))
+    );
+
+    res.json(attendees);
+  } catch (error) {
+    console.error('Get attendees error:', error);
+    res.status(500).json({ error: 'Failed to fetch attendees' });
+  }
+});
+
+// Get check-in stats for an event
+router.get('/events/:id/checkin-stats', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    if (event.organizerId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Count tickets
+    const [total, checkedIn, checkedOut] = await Promise.all([
+      prisma.ticket.count({
+        where: {
+          order: {
+            registration: { eventId: id },
+            status: 'PAID'
+          }
+        }
+      }),
+      prisma.ticket.count({
+        where: {
+          order: {
+            registration: { eventId: id },
+            status: 'PAID'
+          },
+          checkedInAt: { not: null }
+        }
+      }),
+      prisma.ticket.count({
+        where: {
+          order: {
+            registration: { eventId: id },
+            status: 'PAID'
+          },
+          checkedOutAt: { not: null }
+        }
+      })
+    ]);
+
+    res.json({
+      total,
+      checkedIn,
+      checkedOut,
+      notCheckedIn: total - checkedIn,
+      currentlyInside: checkedIn - checkedOut,
+      checkInRate: total > 0 ? ((checkedIn / total) * 100).toFixed(1) : 0
+    });
+  } catch (error) {
+    console.error('Get checkin stats error:', error);
+    res.status(500).json({ error: 'Failed to fetch check-in stats' });
+  }
+});
+
+// Manual check-in by ticket ID
+router.post('/tickets/:ticketId/checkin', async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        order: {
+          include: {
+            registration: {
+              include: { event: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+
+    const event = ticket.order.registration.event;
+    if (event.organizerId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    if (ticket.revoked) {
+      return res.status(400).json({ error: 'Ticket has been revoked' });
+    }
+
+    if (ticket.checkedInAt) {
+      return res.status(400).json({
+        error: 'Already checked in',
+        checkedInAt: ticket.checkedInAt
+      });
+    }
+
+    const updatedTicket = await prisma.ticket.update({
+      where: { id: ticketId },
+      data: {
+        checkedInAt: new Date(),
+        checkedInBy: req.user.id,
+        scannedAt: ticket.scannedAt || new Date() // Backward compatibility
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Checked in successfully',
+      ticket: updatedTicket
+    });
+  } catch (error) {
+    console.error('Check-in error:', error);
+    res.status(500).json({ error: 'Failed to check in' });
+  }
+});
+
+// Manual check-out by ticket ID
+router.post('/tickets/:ticketId/checkout', async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        order: {
+          include: {
+            registration: {
+              include: { event: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+
+    const event = ticket.order.registration.event;
+    if (event.organizerId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    if (!ticket.checkedInAt) {
+      return res.status(400).json({ error: 'Not checked in yet' });
+    }
+
+    if (ticket.checkedOutAt) {
+      return res.status(400).json({
+        error: 'Already checked out',
+        checkedOutAt: ticket.checkedOutAt
+      });
+    }
+
+    const updatedTicket = await prisma.ticket.update({
+      where: { id: ticketId },
+      data: {
+        checkedOutAt: new Date()
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Checked out successfully',
+      ticket: updatedTicket
+    });
+  } catch (error) {
+    console.error('Check-out error:', error);
+    res.status(500).json({ error: 'Failed to check out' });
+  }
+});
+
+// Undo check-in (reset)
+router.post('/tickets/:ticketId/reset-checkin', async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        order: {
+          include: {
+            registration: {
+              include: { event: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+
+    const event = ticket.order.registration.event;
+    if (event.organizerId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const updatedTicket = await prisma.ticket.update({
+      where: { id: ticketId },
+      data: {
+        checkedInAt: null,
+        checkedOutAt: null,
+        checkedInBy: null
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Check-in reset',
+      ticket: updatedTicket
+    });
+  } catch (error) {
+    console.error('Reset check-in error:', error);
+    res.status(500).json({ error: 'Failed to reset check-in' });
+  }
+});
+
+// Update ticket style for an event
+router.put('/events/:id/ticket-style', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { ticketStyle } = req.body;
+
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    if (event.organizerId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const updatedEvent = await prisma.event.update({
+      where: { id },
+      data: { ticketStyle }
+    });
+
+    res.json({ success: true, ticketStyle: updatedEvent.ticketStyle });
+  } catch (error) {
+    console.error('Update ticket style error:', error);
+    res.status(500).json({ error: 'Failed to update ticket style' });
+  }
+});
+
 export default router;
+
