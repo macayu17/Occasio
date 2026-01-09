@@ -66,29 +66,22 @@ export async function sendTicketEmail(ticketId, email) {
     const event = ticket.order.registration.event;
     const attendee = ticket.order.registration.formResponse;
 
-    // Build attachments array
+    // Generate PDF buffer directly (bypass Cloudinary)
     let attachments = [];
-    if (ticket.ticketPdfUrl) {
-      // Check if it's a remote URL (Cloudinary) or local path
-      if (ticket.ticketPdfUrl.startsWith('http')) {
-        // Fetch PDF as buffer for remote URLs to avoid 401 issues
-        const pdfBuffer = await fetchPdfAsBuffer(ticket.ticketPdfUrl);
-        if (pdfBuffer) {
-          attachments.push({
-            filename: `ticket-${ticket.id.substring(0, 8)}.pdf`,
-            content: pdfBuffer,
-            contentType: 'application/pdf'
-          });
-        } else {
-          console.warn('Could not attach PDF - will send email without attachment');
-        }
-      } else {
-        // Local file path
+    try {
+      const { generateTicketPDFBuffer } = await import('./ticket.service.js');
+      const pdfBuffer = await generateTicketPDFBuffer(ticket.order);
+      if (pdfBuffer) {
         attachments.push({
           filename: `ticket-${ticket.id.substring(0, 8)}.pdf`,
-          path: ticket.ticketPdfUrl
+          content: pdfBuffer,
+          contentType: 'application/pdf'
         });
+        console.log('PDF attachment generated successfully');
       }
+    } catch (pdfError) {
+      console.warn('Could not generate PDF attachment:', pdfError.message);
+      // Continue without attachment
     }
 
     const mailOptions = {

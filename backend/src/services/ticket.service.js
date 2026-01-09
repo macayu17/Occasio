@@ -10,6 +10,49 @@ import { uploadPdfToCloudinary } from '../utils/cloudinary.util.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+/**
+ * Create just the ticket record (no PDF generation)
+ * Used for background jobs to quickly create the ticket
+ * PDF is generated on-demand when downloading or emailing
+ */
+export async function createTicketRecord(order) {
+  try {
+    let ticket = await prisma.ticket.findUnique({
+      where: { orderId: order.id }
+    });
+
+    if (!ticket) {
+      // Create the ticket
+      ticket = await prisma.ticket.create({
+        data: {
+          orderId: order.id,
+          qrPayload: '{}',
+          validUntil: order.registration.event.endTime
+        }
+      });
+
+      // Generate QR payload with the actual ticket ID
+      const qrPayload = generateQRPayload({
+        ticketId: ticket.id,
+        orderId: order.id,
+        eventId: order.registration.event.id,
+        registrationId: order.registrationId
+      });
+
+      // Update ticket with correct QR payload
+      ticket = await prisma.ticket.update({
+        where: { id: ticket.id },
+        data: { qrPayload: JSON.stringify(qrPayload) }
+      });
+    }
+
+    return ticket;
+  } catch (error) {
+    console.error('Create ticket record error:', error);
+    throw error;
+  }
+}
+
 export async function generateTicketPDF(order) {
   try {
     // Create or find ticket

@@ -171,21 +171,15 @@ export default function RegistrationPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
         <div className="text-center p-8">
-          {/* Animated Processing Spinner */}
-          <div className="relative mb-8">
-            <div className="w-24 h-24 mx-auto">
-              <div className="absolute inset-0 rounded-full border-4 border-primary-200/30"></div>
-              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-primary-500 animate-spin"></div>
-              <div className="absolute inset-2 rounded-full border-4 border-transparent border-t-secondary-500 animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }}></div>
-              <div className="absolute inset-4 rounded-full border-4 border-transparent border-t-green-500 animate-spin" style={{ animationDuration: '2s' }}></div>
-            </div>
+          {/* Simple Spinner */}
+          <div className="mb-8">
+            <div className="w-16 h-16 mx-auto border-4 border-gray-700 border-t-primary-500 rounded-full animate-spin"></div>
           </div>
 
           {/* Status Text */}
           <h2 className="text-2xl font-bold text-white mb-3">Processing Your Payment</h2>
           <p className="text-gray-400 mb-6 max-w-md">
             Please wait while we confirm your payment and generate your ticket.
-            This may take a few moments...
           </p>
 
           {/* Progress Steps */}
@@ -198,7 +192,7 @@ export default function RegistrationPage() {
             </div>
             <div className="flex items-center text-primary-400">
               <div className="w-5 h-5 mr-3 flex items-center justify-center">
-                <div className="w-3 h-3 rounded-full bg-primary-400 animate-pulse"></div>
+                <div className="w-2 h-2 rounded-full bg-primary-400 animate-pulse"></div>
               </div>
               <span className="text-sm">Verifying transaction...</span>
             </div>

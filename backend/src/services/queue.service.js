@@ -1,5 +1,5 @@
 import { Queue, Worker } from 'bullmq';
-import { generateTicketPDF } from './ticket.service.js';
+import { generateTicketPDF, createTicketRecord } from './ticket.service.js';
 import { sendTicketEmail } from './email.service.js';
 import prisma from '../config/db.js';
 
@@ -121,11 +121,11 @@ export async function enqueueTicketGeneration(orderId) {
   } else {
     // Fallback: process in background without blocking the response
     // Use setImmediate to allow the API response to complete first
-    console.log('Queuing ticket generation in background (Redis not available)');
+    console.log('Creating ticket record in background (Redis not available)');
 
     setImmediate(async () => {
       try {
-        console.log(`Background ticket generation starting for order: ${orderId}`);
+        console.log(`Background ticket creation starting for order: ${orderId}`);
         const order = await prisma.order.findUnique({
           where: { id: orderId },
           include: {
@@ -138,19 +138,21 @@ export async function enqueueTicketGeneration(orderId) {
         });
 
         if (order) {
-          const ticket = await generateTicketPDF(order);
-          console.log(`Ticket generated in background: ${ticket.id}`);
+          // Just create the ticket record (no PDF/Cloudinary)
+          // PDF will be generated on-demand when user downloads or gets email
+          const ticket = await createTicketRecord(order);
+          console.log(`Ticket record created: ${ticket.id}`);
 
-          // Try to send email
+          // Try to send email (will generate PDF attachment on demand)
           try {
             await sendTicketEmail(ticket.id, order.registration.userEmail);
             console.log(`Email sent to: ${order.registration.userEmail}`);
           } catch (emailErr) {
-            console.warn('Email sending failed (check SMTP settings):', emailErr.message);
+            console.warn('Email sending failed:', emailErr.message);
           }
         }
       } catch (error) {
-        console.error('Background ticket generation failed:', error);
+        console.error('Background ticket creation failed:', error);
       }
     });
   }
