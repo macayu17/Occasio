@@ -49,10 +49,10 @@ export const uploadToCloudinary = (fileBuffer, folder = 'posters') => {
 };
 
 /**
- * Upload a PDF buffer to Cloudinary (using raw resource type)
+ * Upload a PDF buffer to Cloudinary (using raw resource type with signed URL)
  * @param {Buffer} pdfBuffer - The PDF buffer to upload
  * @param {string} folder - The folder to upload to
- * @returns {Promise<string>} - The secure URL of the uploaded PDF
+ * @returns {Promise<string>} - The signed URL of the uploaded PDF (valid for 1 year)
  */
 export const uploadPdfToCloudinary = (pdfBuffer, folder = 'tickets') => {
     return new Promise((resolve, reject) => {
@@ -60,13 +60,21 @@ export const uploadPdfToCloudinary = (pdfBuffer, folder = 'tickets') => {
             {
                 folder: `occasio/${folder}`,
                 resource_type: 'raw',  // Important for PDFs!
-                format: 'pdf'
+                format: 'pdf',
+                type: 'authenticated'  // Use authenticated for signed URL access
             },
             (error, result) => {
                 if (error) {
                     reject(error);
                 } else {
-                    resolve(result.secure_url);
+                    // Generate a signed URL that's valid for 1 year (bypasses untrusted customer restriction)
+                    const signedUrl = cloudinary.url(result.public_id, {
+                        resource_type: 'raw',
+                        type: 'authenticated',
+                        sign_url: true,
+                        expires_at: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60) // 1 year
+                    });
+                    resolve(signedUrl);
                 }
             }
         );

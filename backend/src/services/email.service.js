@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import axios from 'axios';
 import prisma from '../config/db.js';
 import path from 'path';
 import fs from 'fs';
@@ -6,6 +7,20 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Helper function to fetch PDF as buffer for email attachment
+async function fetchPdfAsBuffer(url) {
+  try {
+    const response = await axios.get(url, {
+      responseType: 'arraybuffer',
+      timeout: 30000 // 30 second timeout
+    });
+    return Buffer.from(response.data);
+  } catch (error) {
+    console.warn('Failed to fetch PDF from URL:', error.message);
+    return null;
+  }
+}
 
 // Create transporter
 const transporter = nodemailer.createTransport({
@@ -51,15 +66,37 @@ export async function sendTicketEmail(ticketId, email) {
     const event = ticket.order.registration.event;
     const attendee = ticket.order.registration.formResponse;
 
+    // Build attachments array
+    let attachments = [];
+    if (ticket.ticketPdfUrl) {
+      // Check if it's a remote URL (Cloudinary) or local path
+      if (ticket.ticketPdfUrl.startsWith('http')) {
+        // Fetch PDF as buffer for remote URLs to avoid 401 issues
+        const pdfBuffer = await fetchPdfAsBuffer(ticket.ticketPdfUrl);
+        if (pdfBuffer) {
+          attachments.push({
+            filename: `ticket-${ticket.id.substring(0, 8)}.pdf`,
+            content: pdfBuffer,
+            contentType: 'application/pdf'
+          });
+        } else {
+          console.warn('Could not attach PDF - will send email without attachment');
+        }
+      } else {
+        // Local file path
+        attachments.push({
+          filename: `ticket-${ticket.id.substring(0, 8)}.pdf`,
+          path: ticket.ticketPdfUrl
+        });
+      }
+    }
+
     const mailOptions = {
       from: process.env.EMAIL_FROM,
       to: email,
       subject: `Your Ticket for ${event.title}`,
       html: generateEmailHTML(event, attendee, ticket),
-      attachments: ticket.ticketPdfUrl ? [{
-        filename: `ticket-${ticket.id.substring(0, 8)}.pdf`,
-        path: ticket.ticketPdfUrl // Nodemailer supports URLs here
-      }] : []
+      attachments
     };
 
     const info = await transporter.sendMail(mailOptions);

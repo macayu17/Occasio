@@ -119,35 +119,40 @@ export async function enqueueTicketGeneration(orderId) {
       }
     });
   } else {
-    // Fallback: process synchronously
-    console.log('Processing ticket synchronously (Redis not available)');
-    try {
-      const order = await prisma.order.findUnique({
-        where: { id: orderId },
-        include: {
-          registration: {
-            include: {
-              event: true
+    // Fallback: process in background without blocking the response
+    // Use setImmediate to allow the API response to complete first
+    console.log('Queuing ticket generation in background (Redis not available)');
+
+    setImmediate(async () => {
+      try {
+        console.log(`Background ticket generation starting for order: ${orderId}`);
+        const order = await prisma.order.findUnique({
+          where: { id: orderId },
+          include: {
+            registration: {
+              include: {
+                event: true
+              }
             }
           }
-        }
-      });
+        });
 
-      if (order) {
-        const ticket = await generateTicketPDF(order);
-        console.log(`Ticket generated synchronously: ${ticket.id}`);
+        if (order) {
+          const ticket = await generateTicketPDF(order);
+          console.log(`Ticket generated in background: ${ticket.id}`);
 
-        // Try to send email
-        try {
-          await sendTicketEmail(ticket.id, order.registration.userEmail);
-          console.log(`Email sent to: ${order.registration.userEmail}`);
-        } catch (emailErr) {
-          console.warn('Email sending failed (check SMTP settings):', emailErr.message);
+          // Try to send email
+          try {
+            await sendTicketEmail(ticket.id, order.registration.userEmail);
+            console.log(`Email sent to: ${order.registration.userEmail}`);
+          } catch (emailErr) {
+            console.warn('Email sending failed (check SMTP settings):', emailErr.message);
+          }
         }
+      } catch (error) {
+        console.error('Background ticket generation failed:', error);
       }
-    } catch (error) {
-      console.error('Synchronous ticket generation failed:', error);
-    }
+    });
   }
 }
 

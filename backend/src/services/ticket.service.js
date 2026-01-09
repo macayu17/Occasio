@@ -184,3 +184,131 @@ export async function generateTicketPDF(order) {
     throw error;
   }
 }
+
+/**
+ * Generate a PDF buffer for direct download (skips Cloudinary)
+ * This is used for the download endpoint to bypass Cloudinary restrictions
+ */
+export async function generateTicketPDFBuffer(order) {
+  try {
+    // Find or create ticket record
+    let ticket = await prisma.ticket.findUnique({
+      where: { orderId: order.id }
+    });
+
+    if (!ticket) {
+      // Create the ticket first
+      ticket = await prisma.ticket.create({
+        data: {
+          orderId: order.id,
+          qrPayload: '{}',
+          validUntil: order.registration.event.endTime
+        }
+      });
+
+      // Generate QR payload with the actual ticket ID
+      const qrPayload = generateQRPayload({
+        ticketId: ticket.id,
+        orderId: order.id,
+        eventId: order.registration.event.id,
+        registrationId: order.registrationId
+      });
+
+      // Update ticket with correct QR payload
+      ticket = await prisma.ticket.update({
+        where: { id: ticket.id },
+        data: { qrPayload: JSON.stringify(qrPayload) }
+      });
+    }
+
+    // Generate QR code as Buffer
+    const qrCodeBuffer = await QRCode.toBuffer(ticket.qrPayload, {
+      width: 300,
+      margin: 2
+    });
+
+    // Create PDF document
+    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    const buffers = [];
+    doc.on('data', buffers.push.bind(buffers));
+
+    // Generate PDF buffer
+    const pdfBuffer = await new Promise((resolve, reject) => {
+      doc.on('end', () => resolve(Buffer.concat(buffers)));
+      doc.on('error', reject);
+
+      const event = order.registration.event;
+      const attendee = order.registration.formResponse;
+
+      // Header Background
+      doc.rect(0, 0, 600, 150).fill('#667eea');
+
+      // Header Text
+      doc.fontSize(28).fillColor('white')
+        .text('Event Ticket', 50, 50, { align: 'center', width: 500 });
+      doc.fontSize(14)
+        .text('Your pass to an amazing experience', 50, 90, { align: 'center', width: 500 });
+
+      // Reset color
+      doc.fillColor('#333333');
+
+      // Event Details Section
+      let yPos = 180;
+      const xLabel = 50;
+      const xValue = 200;
+      doc.fontSize(12);
+
+      doc.font('Helvetica-Bold').text('Event:', xLabel, yPos);
+      doc.font('Helvetica').text(event.title, xValue, yPos);
+      yPos += 30;
+
+      doc.font('Helvetica-Bold').text('Location:', xLabel, yPos);
+      doc.font('Helvetica').text(event.location, xValue, yPos, { width: 350 });
+      const locationHeight = doc.heightOfString(event.location, { width: 350 });
+      yPos += locationHeight + 15;
+
+      doc.font('Helvetica-Bold').text('Date & Time:', xLabel, yPos);
+      doc.font('Helvetica').text(new Date(event.startTime).toLocaleString(), xValue, yPos);
+      yPos += 30;
+
+      doc.font('Helvetica-Bold').text('Attendee:', xLabel, yPos);
+      doc.font('Helvetica').text(attendee.name || 'N/A', xValue, yPos);
+      yPos += 30;
+
+      doc.font('Helvetica-Bold').text('Email:', xLabel, yPos);
+      doc.font('Helvetica').text(attendee.email || order.registration.userEmail, xValue, yPos);
+      yPos += 30;
+
+      doc.font('Helvetica-Bold').text('Ticket ID:', xLabel, yPos);
+      doc.font('Courier').text(ticket.id.substring(0, 8).toUpperCase(), xValue, yPos);
+      yPos += 50;
+
+      // QR Code Section
+      doc.font('Helvetica-Bold').fontSize(16).text('Scan at Venue', 50, yPos, { align: 'center', width: 500 });
+      yPos += 30;
+
+      const qrWidth = 150;
+      const pageCenter = (595.28 - qrWidth) / 2;
+      try {
+        doc.image(qrCodeBuffer, pageCenter, yPos, { width: qrWidth });
+      } catch (err) {
+        doc.text('[QR Code Missing]', pageCenter, yPos);
+      }
+      yPos += qrWidth + 20;
+
+      doc.font('Helvetica').fontSize(10).text('Please present this QR code at the venue entrance', 50, yPos, { align: 'center', width: 500 });
+
+      // Footer
+      const bottomY = 750;
+      doc.fontSize(10).text(`Ticket issued on ${new Date(ticket.issuedAt).toLocaleString()}`, 50, bottomY, { align: 'center', width: 500 });
+      doc.text('This ticket is non-transferable and valid for one entry only', 50, bottomY + 15, { align: 'center', width: 500 });
+
+      doc.end();
+    });
+
+    return pdfBuffer;
+  } catch (error) {
+    console.error('Generate PDF buffer error:', error);
+    throw error;
+  }
+}
