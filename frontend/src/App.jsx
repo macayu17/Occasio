@@ -81,7 +81,6 @@ function App() {
 
             {/* Team Member Routes */}
             <Route path="/admin/team-events" element={<TeamEventsPage />} />
-            <Route path="/admin/team-event/:id" element={<TeamEventsPage />} />
             <Route path="/admin/team-event/:id/checkin" element={<TeamCheckinPage />} />
 
             {/* Scanner - limited to admins/organizers */}

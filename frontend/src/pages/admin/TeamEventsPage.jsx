@@ -161,12 +161,14 @@ export default function TeamEventsPage() {
                                                     Check-In
                                                 </Link>
                                             )}
-                                            <Link
-                                                to={`/admin/team-event/${event.id}`}
+                                            <a
+                                                href={`/events/${event.id}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
                                                 className="flex-1 btn-secondary text-sm py-2 text-center"
                                             >
                                                 View
-                                            </Link>
+                                            </a>
                                         </>
                                     )}
                                 </div>
