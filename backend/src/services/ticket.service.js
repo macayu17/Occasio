@@ -12,11 +12,116 @@ import { uploadPdfToCloudinary } from '../utils/cloudinary.util.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/**
- * Create just the ticket record (no PDF generation)
- * Used for background jobs to quickly create the ticket
- * PDF is generated on-demand when downloading or emailing
- */
+// ============== DESIGN CONSTANTS ==============
+const TICKET_WIDTH = 595;  // A4 width in points
+const TICKET_HEIGHT = 842; // A4 height in points
+const MARGIN = 40;
+const CONTENT_WIDTH = TICKET_WIDTH - (MARGIN * 2);
+
+// Premium color palette
+const COLORS = {
+  darkBg: [15, 15, 20],
+  cardBg: [25, 25, 35],
+  gold: [212, 175, 55],
+  goldLight: [255, 215, 100],
+  white: [255, 255, 255],
+  gray: [140, 140, 160],
+  lightGray: [200, 200, 210],
+  accent: [99, 102, 241], // Indigo
+};
+
+// ============== HELPER FUNCTIONS ==============
+const hexToRgb = (hex) => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? [
+    parseInt(result[1], 16),
+    parseInt(result[2], 16),
+    parseInt(result[3], 16)
+  ] : [0, 0, 0];
+};
+
+// Fetch image from URL
+const fetchImage = async (url) => {
+  if (!url) return null;
+  try {
+    const protocol = url.startsWith('https') ? https : http;
+    return await new Promise((resolve, reject) => {
+      protocol.get(url, (response) => {
+        if (response.statusCode === 301 || response.statusCode === 302) {
+          // Handle redirects
+          fetchImage(response.headers.location).then(resolve).catch(reject);
+          return;
+        }
+        const chunks = [];
+        response.on('data', chunk => chunks.push(chunk));
+        response.on('end', () => resolve(Buffer.concat(chunks)));
+        response.on('error', reject);
+      }).on('error', reject);
+    });
+  } catch (err) {
+    console.error('Failed to fetch image:', err);
+    return null;
+  }
+};
+
+// Draw rounded rectangle
+const drawRoundedRect = (doc, x, y, width, height, radius, fill, stroke = null) => {
+  doc.save();
+  doc.moveTo(x + radius, y);
+  doc.lineTo(x + width - radius, y);
+  doc.quadraticCurveTo(x + width, y, x + width, y + radius);
+  doc.lineTo(x + width, y + height - radius);
+  doc.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  doc.lineTo(x + radius, y + height);
+  doc.quadraticCurveTo(x, y + height, x, y + height - radius);
+  doc.lineTo(x, y + radius);
+  doc.quadraticCurveTo(x, y, x + radius, y);
+  doc.closePath();
+
+  if (fill) {
+    doc.fill(fill);
+  }
+  if (stroke) {
+    doc.lineWidth(stroke.width || 1).stroke(stroke.color);
+  }
+  doc.restore();
+};
+
+// Draw decorative pattern (subtle dots)
+const drawPattern = (doc, x, y, width, height, color) => {
+  doc.save();
+  doc.opacity(0.03);
+  for (let px = x; px < x + width; px += 20) {
+    for (let py = y; py < y + height; py += 20) {
+      doc.circle(px, py, 1).fill(color);
+    }
+  }
+  doc.opacity(1);
+  doc.restore();
+};
+
+// Draw perforated line
+const drawPerforatedLine = (doc, x1, y, x2, color) => {
+  doc.save();
+  doc.lineWidth(1);
+  doc.dash(5, { space: 5 });
+  doc.moveTo(x1, y).lineTo(x2, y).stroke(color);
+  doc.undash();
+  doc.restore();
+};
+
+// Draw semi-circle cutouts (ticket stub effect)
+const drawCutouts = (doc, y, bgColor) => {
+  const cutoutRadius = 15;
+  doc.save();
+  // Left cutout
+  doc.circle(MARGIN - 5, y, cutoutRadius).fill(bgColor);
+  // Right cutout
+  doc.circle(TICKET_WIDTH - MARGIN + 5, y, cutoutRadius).fill(bgColor);
+  doc.restore();
+};
+
+// ============== TICKET RECORD ==============
 export async function createTicketRecord(order) {
   try {
     let ticket = await prisma.ticket.findUnique({
@@ -24,7 +129,6 @@ export async function createTicketRecord(order) {
     });
 
     if (!ticket) {
-      // Create the ticket
       ticket = await prisma.ticket.create({
         data: {
           orderId: order.id,
@@ -33,7 +137,6 @@ export async function createTicketRecord(order) {
         }
       });
 
-      // Generate QR payload with the actual ticket ID
       const qrPayload = generateQRPayload({
         ticketId: ticket.id,
         orderId: order.id,
@@ -41,7 +144,6 @@ export async function createTicketRecord(order) {
         registrationId: order.registrationId
       });
 
-      // Update ticket with correct QR payload
       ticket = await prisma.ticket.update({
         where: { id: ticket.id },
         data: { qrPayload: JSON.stringify(qrPayload) }
@@ -55,237 +157,288 @@ export async function createTicketRecord(order) {
   }
 }
 
+// ============== PREMIUM TICKET DESIGN ==============
+async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
+  const event = order.registration.event;
+  const attendee = order.registration.formResponse;
+  const ticketStyle = event.ticketStyle || {};
+
+  // Get custom colors or use premium defaults
+  const primaryColor = ticketStyle.primaryColor ? hexToRgb(ticketStyle.primaryColor) : COLORS.gold;
+  const accentColor = ticketStyle.accentColor ? hexToRgb(ticketStyle.accentColor) : COLORS.white;
+  const bgColor = ticketStyle.backgroundColor ? hexToRgb(ticketStyle.backgroundColor) : COLORS.darkBg;
+
+  // Fetch event poster
+  const posterImage = await fetchImage(event.posterUrl || ticketStyle.headerImage);
+
+  // ===== BACKGROUND =====
+  doc.rect(0, 0, TICKET_WIDTH, TICKET_HEIGHT).fill(bgColor);
+
+  // Subtle pattern overlay
+  drawPattern(doc, 0, 0, TICKET_WIDTH, TICKET_HEIGHT, COLORS.white);
+
+  // ===== MAIN TICKET CARD =====
+  const cardX = MARGIN;
+  const cardY = MARGIN;
+  const cardWidth = CONTENT_WIDTH;
+  const cardHeight = 700;
+
+  // Card background with gradient simulation (layered rectangles)
+  drawRoundedRect(doc, cardX, cardY, cardWidth, cardHeight, 20, COLORS.cardBg);
+
+  // Gold accent border
+  doc.save();
+  doc.lineWidth(2);
+  drawRoundedRect(doc, cardX + 2, cardY + 2, cardWidth - 4, cardHeight - 4, 18, null, { color: primaryColor, width: 2 });
+  doc.restore();
+
+  // ===== HEADER SECTION WITH POSTER =====
+  const headerHeight = 180;
+
+  // Clip rounded corners for header image
+  doc.save();
+  doc.moveTo(cardX + 20, cardY + 10);
+  doc.lineTo(cardX + cardWidth - 20, cardY + 10);
+  doc.quadraticCurveTo(cardX + cardWidth - 10, cardY + 10, cardX + cardWidth - 10, cardY + 25);
+  doc.lineTo(cardX + cardWidth - 10, cardY + headerHeight);
+  doc.lineTo(cardX + 10, cardY + headerHeight);
+  doc.lineTo(cardX + 10, cardY + 25);
+  doc.quadraticCurveTo(cardX + 10, cardY + 10, cardX + 20, cardY + 10);
+  doc.clip();
+
+  if (posterImage) {
+    try {
+      // Draw poster as header
+      doc.image(posterImage, cardX + 10, cardY + 10, {
+        width: cardWidth - 20,
+        height: headerHeight - 10,
+        fit: [cardWidth - 20, headerHeight - 10],
+        align: 'center',
+        valign: 'center'
+      });
+      // Dark overlay for text readability
+      doc.save();
+      doc.opacity(0.6);
+      doc.rect(cardX + 10, cardY + headerHeight - 60, cardWidth - 20, 60).fill([0, 0, 0]);
+      doc.opacity(1);
+      doc.restore();
+    } catch (e) {
+      // Fallback gradient header
+      doc.rect(cardX + 10, cardY + 10, cardWidth - 20, headerHeight - 10).fill(primaryColor);
+    }
+  } else {
+    // Default gradient-style header
+    doc.rect(cardX + 10, cardY + 10, cardWidth - 20, headerHeight - 10).fill(primaryColor);
+    // Add subtle pattern
+    drawPattern(doc, cardX + 10, cardY + 10, cardWidth - 20, headerHeight - 10, COLORS.white);
+  }
+  doc.restore();
+
+  // Event badge
+  const badgeY = cardY + headerHeight - 45;
+  doc.font('Helvetica-Bold').fontSize(9)
+    .fillColor(primaryColor)
+    .text('✦ EVENT TICKET', cardX + 25, badgeY);
+
+  // Event title on header
+  doc.font('Helvetica-Bold').fontSize(26)
+    .fillColor(COLORS.white)
+    .text(event.title, cardX + 25, badgeY + 15, {
+      width: cardWidth - 50,
+      lineGap: 2
+    });
+
+  // ===== CONTENT SECTION =====
+  let yPos = cardY + headerHeight + 25;
+  const leftCol = cardX + 25;
+  const qrSize = 140;
+  const rightColX = leftCol + qrSize + 30;
+  const rightColWidth = cardWidth - qrSize - 80;
+
+  // ===== QR CODE SECTION (Left) =====
+  const qrContainerSize = qrSize + 20;
+
+  // QR background with gold border
+  drawRoundedRect(doc, leftCol, yPos, qrContainerSize, qrContainerSize, 12, [30, 30, 40]);
+  drawRoundedRect(doc, leftCol + 2, yPos + 2, qrContainerSize - 4, qrContainerSize - 4, 10, null, { color: primaryColor, width: 1.5 });
+
+  // QR Code
+  try {
+    doc.image(qrCodeBuffer, leftCol + 10, yPos + 10, { width: qrSize, height: qrSize });
+  } catch (err) {
+    doc.fillColor(COLORS.gray).text('[QR]', leftCol + 50, yPos + 60);
+  }
+
+  // "Scan to enter" label below QR
+  doc.font('Helvetica').fontSize(8)
+    .fillColor(COLORS.gray)
+    .text('SCAN TO ENTER', leftCol, yPos + qrContainerSize + 8, {
+      width: qrContainerSize,
+      align: 'center'
+    });
+
+  // ===== EVENT DETAILS (Right of QR) =====
+  let detailY = yPos;
+
+  // Date & Time
+  doc.font('Helvetica').fontSize(9).fillColor(COLORS.gray)
+    .text('DATE & TIME', rightColX, detailY);
+  detailY += 14;
+
+  const eventDate = new Date(event.startTime);
+  doc.font('Helvetica-Bold').fontSize(14).fillColor(COLORS.white)
+    .text(eventDate.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    }), rightColX, detailY);
+  detailY += 18;
+
+  doc.font('Helvetica').fontSize(12).fillColor(COLORS.lightGray)
+    .text(eventDate.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit'
+    }), rightColX, detailY);
+  detailY += 30;
+
+  // Location
+  doc.font('Helvetica').fontSize(9).fillColor(COLORS.gray)
+    .text('VENUE', rightColX, detailY);
+  detailY += 14;
+
+  doc.font('Helvetica-Bold').fontSize(12).fillColor(COLORS.white)
+    .text(event.location || 'TBA', rightColX, detailY, {
+      width: rightColWidth,
+      lineGap: 2
+    });
+  detailY += doc.heightOfString(event.location || 'TBA', { width: rightColWidth }) + 20;
+
+  // Ticket Number
+  doc.font('Helvetica').fontSize(9).fillColor(COLORS.gray)
+    .text('TICKET #', rightColX, detailY);
+  detailY += 14;
+
+  doc.font('Courier-Bold').fontSize(16).fillColor(primaryColor)
+    .text(ticket.id.substring(0, 8).toUpperCase(), rightColX, detailY);
+
+  // ===== PERFORATED LINE / TEAR-OFF SECTION =====
+  const tearY = yPos + qrContainerSize + 50;
+
+  // Cutouts
+  drawCutouts(doc, tearY, bgColor);
+
+  // Perforated line
+  drawPerforatedLine(doc, cardX + 20, tearY, cardX + cardWidth - 20, COLORS.gray);
+
+  // ===== ATTENDEE SECTION (Below tear line) =====
+  let attendeeY = tearY + 25;
+
+  // Section header
+  doc.font('Helvetica-Bold').fontSize(10).fillColor(primaryColor)
+    .text('ATTENDEE INFORMATION', leftCol, attendeeY);
+  attendeeY += 25;
+
+  // Two-column layout for attendee info
+  const col1X = leftCol;
+  const col2X = leftCol + (cardWidth - 50) / 2;
+  const colWidth = (cardWidth - 50) / 2 - 10;
+
+  // Name
+  doc.font('Helvetica').fontSize(9).fillColor(COLORS.gray)
+    .text('NAME', col1X, attendeeY);
+  doc.font('Helvetica-Bold').fontSize(13).fillColor(COLORS.white)
+    .text(attendee.name || 'Guest', col1X, attendeeY + 14, { width: colWidth });
+
+  // Email
+  doc.font('Helvetica').fontSize(9).fillColor(COLORS.gray)
+    .text('EMAIL', col2X, attendeeY);
+  doc.font('Helvetica').fontSize(11).fillColor(COLORS.lightGray)
+    .text(attendee.email || order.registration.userEmail || '-', col2X, attendeeY + 14, {
+      width: colWidth,
+      ellipsis: true
+    });
+
+  attendeeY += 55;
+
+  // ===== FOOTER =====
+  const footerY = cardY + cardHeight - 50;
+
+  // Decorative line
+  doc.moveTo(cardX + 25, footerY)
+    .lineTo(cardX + cardWidth - 25, footerY)
+    .lineWidth(0.5)
+    .stroke([50, 50, 60]);
+
+  // Footer text
+  doc.font('Helvetica').fontSize(8).fillColor(COLORS.gray);
+  doc.text('This ticket is non-transferable • Valid for single entry only',
+    cardX + 25, footerY + 12, { width: cardWidth - 50, align: 'center' });
+
+  // Issued date
+  const issuedText = `Issued: ${new Date(ticket.issuedAt).toLocaleDateString()}`;
+  doc.text(issuedText, cardX + 25, footerY + 25, { width: cardWidth - 50, align: 'center' });
+
+  // ===== BOTTOM BRANDING =====
+  const brandY = TICKET_HEIGHT - 50;
+  doc.font('Helvetica-Bold').fontSize(18).fillColor(primaryColor)
+    .text('occasio', 0, brandY, { width: TICKET_WIDTH, align: 'center' });
+  doc.font('Helvetica').fontSize(8).fillColor(COLORS.gray)
+    .text('Premium Event Experience', 0, brandY + 20, { width: TICKET_WIDTH, align: 'center' });
+}
+
+// ============== MAIN EXPORT FUNCTIONS ==============
 export async function generateTicketPDF(order) {
   try {
-    // Create or find ticket
     let ticket = await prisma.ticket.findUnique({
       where: { orderId: order.id }
     });
 
     if (!ticket) {
-      // First create the ticket to get the actual ID
       ticket = await prisma.ticket.create({
         data: {
           orderId: order.id,
-          qrPayload: '{}', // Placeholder, will update after
+          qrPayload: '{}',
           validUntil: order.registration.event.endTime
         }
       });
 
-      // Now generate QR payload with the actual ticket ID
       const qrPayload = generateQRPayload({
-        ticketId: ticket.id, // Use the actual ticket ID!
+        ticketId: ticket.id,
         orderId: order.id,
         eventId: order.registration.event.id,
         registrationId: order.registrationId
       });
 
-      // Update ticket with the correct QR payload
       ticket = await prisma.ticket.update({
         where: { id: ticket.id },
         data: { qrPayload: JSON.stringify(qrPayload) }
       });
     }
 
-    // Generate QR code as Buffer (for PDFKit)
+    // Generate QR code
     const qrCodeBuffer = await QRCode.toBuffer(ticket.qrPayload, {
       width: 300,
-      margin: 2
+      margin: 1,
+      color: { dark: '#000000', light: '#ffffff' }
     });
 
-    // Get custom styles or use defaults
-    const event = order.registration.event;
-    const attendee = order.registration.formResponse;
-    const ticketStyle = event.ticketStyle || {};
-    const primaryColor = ticketStyle.primaryColor || '#E23744';
-    const accentColor = ticketStyle.accentColor || '#ffffff';
-    const backgroundColor = ticketStyle.backgroundColor || '#18181b';
-    const headerImage = ticketStyle.headerImage || '';
-    // Validate font - only allow PDF built-in fonts, fallback to Helvetica
-    const VALID_FONTS = ['Helvetica', 'Times-Roman', 'Courier'];
-    const rawFont = ticketStyle.fontFamily || 'Helvetica';
-    const fontFamily = VALID_FONTS.includes(rawFont) ? rawFont : 'Helvetica';
-    const fontBold = fontFamily === 'Times-Roman' ? 'Times-Bold' :
-      fontFamily === 'Courier' ? 'Courier-Bold' : 'Helvetica-Bold';
-    const showQR = ticketStyle.showQR !== false;
-    const showLogo = ticketStyle.showLogo !== false;
-    const showBorder = ticketStyle.showBorder !== false;
-
-    // Helper to convert hex to RGB for PDFKit
-    const hexToRgb = (hex) => {
-      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-      return result ? [
-        parseInt(result[1], 16),
-        parseInt(result[2], 16),
-        parseInt(result[3], 16)
-      ] : [0, 0, 0];
-    };
-
-    const [bgR, bgG, bgB] = hexToRgb(backgroundColor);
-    const [primaryR, primaryG, primaryB] = hexToRgb(primaryColor);
-    const [accentR, accentG, accentB] = hexToRgb(accentColor);
-
-    // Fetch header image if provided (before PDF generation)
-    let headerImageBuffer = null;
-    if (headerImage) {
-      try {
-        const protocol = headerImage.startsWith('https') ? https : http;
-        headerImageBuffer = await new Promise((resolve, reject) => {
-          protocol.get(headerImage, (response) => {
-            const chunks = [];
-            response.on('data', chunk => chunks.push(chunk));
-            response.on('end', () => resolve(Buffer.concat(chunks)));
-            response.on('error', reject);
-          }).on('error', reject);
-        });
-      } catch (imgErr) {
-        console.error('Failed to load header image:', imgErr);
-      }
-    }
-
-    // Create a new PDF document
-    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    // Create PDF document
+    const doc = new PDFDocument({ size: 'A4', margin: 0 });
     const buffers = [];
     doc.on('data', buffers.push.bind(buffers));
 
-    // Wait for the PDF to be fully generated
     const pdfBuffer = await new Promise((resolve, reject) => {
-      doc.on('end', () => {
-        const pdfData = Buffer.concat(buffers);
-        resolve(pdfData);
-      });
+      doc.on('end', () => resolve(Buffer.concat(buffers)));
       doc.on('error', reject);
 
-      // --- Draw Ticket Design ---
-
-      // Background
-      doc.rect(0, 0, 595, 842).fill([bgR, bgG, bgB]);
-
-      // Border (if enabled)
-      if (showBorder) {
-        doc.rect(30, 30, 535, 782)
-          .lineWidth(2)
-          .stroke([primaryR, primaryG, primaryB]);
-      }
-
-      // Header - use image if available, otherwise solid color
-      if (headerImageBuffer) {
-        try {
-          doc.image(headerImageBuffer, 40, 40, { width: 515, height: 100 });
-        } catch (e) {
-          doc.rect(40, 40, 515, 100).fill([primaryR, primaryG, primaryB]);
-        }
-      } else {
-        doc.rect(40, 40, 515, 100).fill([primaryR, primaryG, primaryB]);
-      }
-
-      // Event Title
-      doc.fontSize(28)
-        .fillColor([accentR, accentG, accentB])
-        .font(fontBold)
-        .text(event.title, 60, 60, { width: 400 });
-
-      doc.fontSize(12)
-        .font(fontFamily)
-        .text('Event Ticket', 60, 110, { width: 400 });
-
-      // Logo placeholder (if enabled)
-      if (showLogo) {
-        doc.rect(470, 55, 70, 70)
-          .fill([accentR, accentG, accentB]);
-        doc.fontSize(32)
-          .fillColor([primaryR, primaryG, primaryB])
-          .font(fontBold)
-          .text('O', 490, 75);
-      }
-
-      // Event Details Section
-      let yPos = 170;
-      const xLabel = 60;
-      const xValue = 200;
-
-      doc.fillColor([accentR, accentG, accentB]);
-      doc.fontSize(11);
-
-      // Date & Time
-      doc.font('Helvetica-Bold').text('Date & Time', xLabel, yPos);
-      doc.font('Helvetica').text(new Date(event.startTime).toLocaleString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      }), xValue, yPos);
-      yPos += 35;
-
-      // Location
-      doc.font('Helvetica-Bold').text('Venue', xLabel, yPos);
-      doc.font('Helvetica').text(event.location, xValue, yPos, { width: 350 });
-      const locationHeight = doc.heightOfString(event.location, { width: 350 });
-      yPos += Math.max(35, locationHeight + 15);
-
-      // Divider
-      doc.moveTo(60, yPos).lineTo(535, yPos).lineWidth(0.5).stroke([primaryR, primaryG, primaryB]);
-      yPos += 25;
-
-      // Attendee Info
-      doc.font('Helvetica-Bold').text('Attendee', xLabel, yPos);
-      doc.font('Helvetica').text(attendee.name || 'N/A', xValue, yPos);
-      yPos += 30;
-
-      doc.font('Helvetica-Bold').text('Email', xLabel, yPos);
-      doc.font('Helvetica').text(attendee.email || order.registration.userEmail, xValue, yPos);
-      yPos += 30;
-
-      doc.font('Helvetica-Bold').text('Ticket #', xLabel, yPos);
-      doc.font('Courier-Bold').fillColor([primaryR, primaryG, primaryB])
-        .text(ticket.id.substring(0, 8).toUpperCase(), xValue, yPos);
-      yPos += 50;
-
-      // Divider
-      doc.fillColor([accentR, accentG, accentB]);
-      doc.moveTo(60, yPos).lineTo(535, yPos).lineWidth(0.5).stroke([primaryR, primaryG, primaryB]);
-      yPos += 30;
-
-      // QR Code Section (if enabled)
-      if (showQR) {
-        doc.font('Helvetica-Bold').fontSize(14)
-          .fillColor([primaryR, primaryG, primaryB])
-          .text('SCAN AT VENUE', 50, yPos, { align: 'center', width: 495 });
-        yPos += 30;
-
-        // QR Code background
-        const qrWidth = 180;
-        const pageCenter = (595 - qrWidth - 20) / 2;
-        doc.rect(pageCenter, yPos, qrWidth + 20, qrWidth + 20)
-          .fill([primaryR, primaryG, primaryB]);
-
-        try {
-          doc.image(qrCodeBuffer, pageCenter + 10, yPos + 10, { width: qrWidth });
-        } catch (err) {
-          console.error('Error adding QR image to PDF:', err);
-          doc.fillColor([accentR, accentG, accentB]).text('[QR Code Missing]', pageCenter, yPos + 70);
-        }
-        yPos += qrWidth + 40;
-
-        doc.font('Helvetica').fontSize(10)
-          .fillColor([accentR, accentG, accentB])
-          .text('Present this QR code at the venue entrance', 50, yPos, { align: 'center', width: 495 });
-      }
-
-      // Footer
-      const bottomY = 780;
-      doc.fontSize(8)
-        .fillColor([accentR, accentG, accentB])
-        .text(`Issued: ${new Date(ticket.issuedAt).toLocaleString()}  •  Valid until: ${new Date(event.endTime).toLocaleString()}`, 50, bottomY, { align: 'center', width: 495 });
-      doc.text('This ticket is non-transferable and valid for one entry only', 50, bottomY + 12, { align: 'center', width: 495 });
-
-      // Finalize PDF file
-      doc.end();
+      // Draw the premium ticket
+      drawPremiumTicket(doc, ticket, order, qrCodeBuffer)
+        .then(() => doc.end())
+        .catch(reject);
     });
 
-    // Upload directly to Cloudinary using buffer
+    // Upload to Cloudinary
     let ticketPdfUrl = null;
     if (process.env.CLOUDINARY_CLOUD_NAME) {
       try {
@@ -293,11 +446,10 @@ export async function generateTicketPDF(order) {
         ticketPdfUrl = await uploadPdfToCloudinary(pdfBuffer, 'tickets');
       } catch (uploadError) {
         console.error('Cloudinary upload failed:', uploadError);
-        // Fallback to local save
       }
     }
 
-    // If upload failed or not configured, save locally (works primarily in dev)
+    // Fallback to local save
     if (!ticketPdfUrl) {
       const uploadDir = path.join(__dirname, '../../uploads/tickets');
       if (!fs.existsSync(uploadDir)) {
@@ -309,7 +461,6 @@ export async function generateTicketPDF(order) {
       ticketPdfUrl = `/uploads/tickets/${filename}`;
     }
 
-    // Update ticket with PDF URL
     ticket = await prisma.ticket.update({
       where: { id: ticket.id },
       data: { ticketPdfUrl }
@@ -322,19 +473,13 @@ export async function generateTicketPDF(order) {
   }
 }
 
-/**
- * Generate a PDF buffer for direct download (skips Cloudinary)
- * This is used for the download endpoint to bypass Cloudinary restrictions
- */
 export async function generateTicketPDFBuffer(order) {
   try {
-    // Find or create ticket record
     let ticket = await prisma.ticket.findUnique({
       where: { orderId: order.id }
     });
 
     if (!ticket) {
-      // Create the ticket first
       ticket = await prisma.ticket.create({
         data: {
           orderId: order.id,
@@ -343,7 +488,6 @@ export async function generateTicketPDFBuffer(order) {
         }
       });
 
-      // Generate QR payload with the actual ticket ID
       const qrPayload = generateQRPayload({
         ticketId: ticket.id,
         orderId: order.id,
@@ -351,203 +495,32 @@ export async function generateTicketPDFBuffer(order) {
         registrationId: order.registrationId
       });
 
-      // Update ticket with correct QR payload
       ticket = await prisma.ticket.update({
         where: { id: ticket.id },
         data: { qrPayload: JSON.stringify(qrPayload) }
       });
     }
 
-    // Generate QR code as Buffer
+    // Generate QR code
     const qrCodeBuffer = await QRCode.toBuffer(ticket.qrPayload, {
       width: 300,
-      margin: 2
+      margin: 1,
+      color: { dark: '#000000', light: '#ffffff' }
     });
 
-    // Get custom styles
-    const event = order.registration.event;
-    const attendee = order.registration.formResponse;
-    const styles = event.ticketStyle || {};
-    const primaryColor = styles.primaryColor || '#E23744';
-    const accentColor = styles.accentColor || '#ffffff';
-    const backgroundColor = styles.backgroundColor || '#18181b';
-    const headerImage = styles.headerImage || '';
-    // Validate font - only allow PDF built-in fonts, fallback to Helvetica
-    const VALID_FONTS = ['Helvetica', 'Times-Roman', 'Courier'];
-    const rawFont = styles.fontFamily || 'Helvetica';
-    const fontFamily = VALID_FONTS.includes(rawFont) ? rawFont : 'Helvetica';
-    const fontBold = fontFamily === 'Times-Roman' ? 'Times-Bold' :
-      fontFamily === 'Courier' ? 'Courier-Bold' : 'Helvetica-Bold';
-    const showQR = styles.showQR !== false;
-    const showLogo = styles.showLogo !== false;
-    const showBorder = styles.showBorder !== false;
-
-    // Helper to convert hex to RGB for PDFKit
-    const hexToRgb = (hex) => {
-      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-      return result ? [
-        parseInt(result[1], 16),
-        parseInt(result[2], 16),
-        parseInt(result[3], 16)
-      ] : [0, 0, 0];
-    };
-
-    const [bgR, bgG, bgB] = hexToRgb(backgroundColor);
-    const [primaryR, primaryG, primaryB] = hexToRgb(primaryColor);
-    const [accentR, accentG, accentB] = hexToRgb(accentColor);
-
-    // Fetch header image if provided (before PDF generation)
-    let headerImageBuffer = null;
-    if (headerImage) {
-      try {
-        const protocol = headerImage.startsWith('https') ? https : http;
-        headerImageBuffer = await new Promise((resolve, reject) => {
-          protocol.get(headerImage, (response) => {
-            const chunks = [];
-            response.on('data', chunk => chunks.push(chunk));
-            response.on('end', () => resolve(Buffer.concat(chunks)));
-            response.on('error', reject);
-          }).on('error', reject);
-        });
-      } catch (imgErr) {
-        console.error('Failed to load header image:', imgErr);
-      }
-    }
-
     // Create PDF document
-    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    const doc = new PDFDocument({ size: 'A4', margin: 0 });
     const buffers = [];
     doc.on('data', buffers.push.bind(buffers));
 
-    // Generate PDF buffer
     const pdfBuffer = await new Promise((resolve, reject) => {
       doc.on('end', () => resolve(Buffer.concat(buffers)));
       doc.on('error', reject);
 
-      // Background
-      doc.rect(0, 0, 595, 842).fill([bgR, bgG, bgB]);
-
-      // Border (if enabled)
-      if (showBorder) {
-        doc.rect(30, 30, 535, 782)
-          .lineWidth(2)
-          .stroke([primaryR, primaryG, primaryB]);
-      }
-
-      // Header - use image if available, otherwise solid color
-      if (headerImageBuffer) {
-        try {
-          doc.image(headerImageBuffer, 40, 40, { width: 515, height: 100 });
-        } catch (e) {
-          doc.rect(40, 40, 515, 100).fill([primaryR, primaryG, primaryB]);
-        }
-      } else {
-        doc.rect(40, 40, 515, 100).fill([primaryR, primaryG, primaryB]);
-      }
-
-      // Event Title
-      doc.fontSize(28)
-        .fillColor([accentR, accentG, accentB])
-        .font(fontBold)
-        .text(event.title, 60, 60, { width: 400 });
-
-      doc.fontSize(12)
-        .font(fontFamily)
-        .text('Event Ticket', 60, 110, { width: 400 });
-
-      // Logo placeholder (if enabled)
-      if (showLogo) {
-        doc.rect(470, 55, 70, 70)
-          .fill([accentR, accentG, accentB]);
-        doc.fontSize(32)
-          .fillColor([primaryR, primaryG, primaryB])
-          .font(fontBold)
-          .text('O', 490, 75);
-      }
-
-      // Event Details Section
-      let yPos = 170;
-      const xLabel = 60;
-      const xValue = 200;
-
-      doc.fillColor([accentR, accentG, accentB]);
-      doc.fontSize(11);
-
-      // Date & Time
-      doc.font('Helvetica-Bold').text('Date & Time', xLabel, yPos);
-      doc.font('Helvetica').text(new Date(event.startTime).toLocaleString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      }), xValue, yPos);
-      yPos += 35;
-
-      // Location
-      doc.font('Helvetica-Bold').text('Venue', xLabel, yPos);
-      doc.font('Helvetica').text(event.location, xValue, yPos, { width: 350 });
-      const locationHeight = doc.heightOfString(event.location, { width: 350 });
-      yPos += Math.max(35, locationHeight + 15);
-
-      // Divider
-      doc.moveTo(60, yPos).lineTo(535, yPos).lineWidth(0.5).stroke([primaryR, primaryG, primaryB]);
-      yPos += 25;
-
-      // Attendee Info
-      doc.font('Helvetica-Bold').text('Attendee', xLabel, yPos);
-      doc.font('Helvetica').text(attendee.name || 'N/A', xValue, yPos);
-      yPos += 30;
-
-      doc.font('Helvetica-Bold').text('Email', xLabel, yPos);
-      doc.font('Helvetica').text(attendee.email || order.registration.userEmail, xValue, yPos);
-      yPos += 30;
-
-      doc.font('Helvetica-Bold').text('Ticket #', xLabel, yPos);
-      doc.font('Courier-Bold').fillColor([primaryR, primaryG, primaryB])
-        .text(ticket.id.substring(0, 8).toUpperCase(), xValue, yPos);
-      yPos += 50;
-
-      // Divider
-      doc.fillColor([accentR, accentG, accentB]);
-      doc.moveTo(60, yPos).lineTo(535, yPos).lineWidth(0.5).stroke([primaryR, primaryG, primaryB]);
-      yPos += 30;
-
-      // QR Code Section (if enabled)
-      if (showQR) {
-        doc.font('Helvetica-Bold').fontSize(14)
-          .fillColor([primaryR, primaryG, primaryB])
-          .text('SCAN AT VENUE', 50, yPos, { align: 'center', width: 495 });
-        yPos += 30;
-
-        // QR Code background
-        const qrWidth = 180;
-        const pageCenter = (595 - qrWidth - 20) / 2;
-        doc.rect(pageCenter, yPos, qrWidth + 20, qrWidth + 20)
-          .fill([primaryR, primaryG, primaryB]);
-
-        try {
-          doc.image(qrCodeBuffer, pageCenter + 10, yPos + 10, { width: qrWidth });
-        } catch (err) {
-          console.error('Error adding QR image to PDF:', err);
-          doc.fillColor([accentR, accentG, accentB]).text('[QR Code Missing]', pageCenter, yPos + 70);
-        }
-        yPos += qrWidth + 40;
-
-        doc.font('Helvetica').fontSize(10)
-          .fillColor([accentR, accentG, accentB])
-          .text('Present this QR code at the venue entrance', 50, yPos, { align: 'center', width: 495 });
-      }
-
-      // Footer
-      const bottomY = 780;
-      doc.fontSize(8)
-        .fillColor([accentR, accentG, accentB])
-        .text(`Issued: ${new Date(ticket.issuedAt).toLocaleString()}  •  Valid until: ${new Date(event.endTime).toLocaleString()}`, 50, bottomY, { align: 'center', width: 495 });
-      doc.text('This ticket is non-transferable and valid for one entry only', 50, bottomY + 12, { align: 'center', width: 495 });
-
-      doc.end();
+      // Draw the premium ticket
+      drawPremiumTicket(doc, ticket, order, qrCodeBuffer)
+        .then(() => doc.end())
+        .catch(reject);
     });
 
     return pdfBuffer;
