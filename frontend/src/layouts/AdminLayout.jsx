@@ -10,7 +10,8 @@ import {
   Plus,
   Ticket,
   BarChart3,
-  QrCode
+  QrCode,
+  Users
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -22,6 +23,7 @@ export default function AdminLayout() {
   const navigation = [
     { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
     { name: 'Events', href: '/admin/events', icon: Calendar },
+    { name: 'Team Events', href: '/admin/team-events', icon: Users },
     { name: 'Financials', href: '/admin/financials', icon: BarChart3 },
     { name: 'Scanner', href: '/scanner', icon: QrCode },
   ];

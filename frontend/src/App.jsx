@@ -27,6 +27,8 @@ import AnalyticsPage from './pages/admin/AnalyticsPage';
 import FinancialsPage from './pages/admin/FinancialsPage';
 import DiscountCodesPage from './pages/admin/DiscountCodesPage';
 import EventControlPage from './pages/admin/EventControlPage';
+import TeamEventsPage from './pages/admin/TeamEventsPage';
+import TeamCheckinPage from './pages/admin/TeamCheckinPage';
 
 // Layout
 import PublicLayout from './layouts/PublicLayout';
@@ -76,6 +78,11 @@ function App() {
             <Route path="/admin/events/:id/analytics" element={<AnalyticsPage />} />
             <Route path="/admin/events/:id/discounts" element={<DiscountCodesPage />} />
             <Route path="/admin/financials" element={<FinancialsPage />} />
+
+            {/* Team Member Routes */}
+            <Route path="/admin/team-events" element={<TeamEventsPage />} />
+            <Route path="/admin/team-event/:id" element={<TeamEventsPage />} />
+            <Route path="/admin/team-event/:id/checkin" element={<TeamCheckinPage />} />
 
             {/* Scanner - limited to admins/organizers */}
             <Route path="/scanner" element={<ScannerPage />} />

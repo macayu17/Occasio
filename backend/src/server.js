@@ -17,6 +17,7 @@ import discountRoutes from './routes/discount.routes.js';
 import reviewRoutes from './routes/review.routes.js';
 import pollRoutes from './routes/poll.routes.js';
 import pushRoutes from './routes/push.routes.js';
+import teamRoutes from './routes/team.routes.js';
 
 dotenv.config();
 
@@ -85,12 +86,13 @@ app.use('/api/discounts', discountRoutes);
 app.use('/api', reviewRoutes);
 app.use('/api', pollRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/team', teamRoutes);
 
 // Health check with version for deployment verification
 app.get('/health', (req, res) => {
   res.json({
     status: 'OK',
-    version: '2026-01-09-v3-polls',  // Update this to verify deployment
+    version: '2026-01-10-team-access',  // Update this to verify deployment
     timestamp: new Date().toISOString()
   });
 });
