@@ -2,11 +2,12 @@ import express from 'express';
 import crypto from 'crypto';
 import prisma from '../config/db.js';
 import { verifyQRSignature } from '../utils/qr.util.js';
+import { authenticate, checkEventAccess } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
-// Verify ticket (for scanning at venue)
-router.post('/verify', async (req, res) => {
+// Verify ticket (for scanning at venue) - requires authentication
+router.post('/verify', authenticate, async (req, res) => {
   try {
     const { qrPayload } = req.body;
 
@@ -65,6 +66,17 @@ router.post('/verify', async (req, res) => {
       return res.status(404).json({
         valid: false,
         error: 'Ticket not found'
+      });
+    }
+
+    // Check if user has access to scan this event's tickets
+    const eventId = ticket.order.registration.event.id;
+    const accessCheck = await checkEventAccess(req.user, eventId, ['MANAGER', 'SCANNER']);
+
+    if (!accessCheck.hasAccess) {
+      return res.status(403).json({
+        valid: false,
+        error: 'You do not have permission to scan tickets for this event'
       });
     }
 

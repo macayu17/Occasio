@@ -13,31 +13,61 @@ import {
   QrCode,
   Users
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import api from '../utils/api';
 
 export default function AdminLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [hasOwnEvents, setHasOwnEvents] = useState(null); // null = loading
 
-  // Check if user is an organizer/admin (can manage their own events)
-  const isOrganizerOrAdmin = user?.role === 'ADMIN' || user?.role === 'ORGANIZER';
+  // Check if user is an admin (super admin always sees everything)
+  const isAdmin = user?.role === 'ADMIN';
 
-  // Navigation items - filtered based on user role
+  // Check if user has their own events
+  useEffect(() => {
+    const checkOwnEvents = async () => {
+      if (isAdmin) {
+        setHasOwnEvents(true);
+        return;
+      }
+      try {
+        const res = await api.get('/admin/events');
+        // If user has any events they own, show organizer items
+        setHasOwnEvents(res.data.length > 0);
+      } catch (error) {
+        // If error, assume no events (safe default for team-only users)
+        setHasOwnEvents(false);
+      }
+    };
+
+    if (user) {
+      checkOwnEvents();
+    }
+  }, [user, isAdmin]);
+
+  // Show full sidebar for admin OR users with their own events
+  const showOrganizerItems = isAdmin || hasOwnEvents;
+
+  // Navigation items - filtered based on whether user owns events
   const allNavigation = [
-    { name: 'Dashboard', href: '/admin', icon: LayoutDashboard, requiresOrganizer: true },
-    { name: 'Events', href: '/admin/events', icon: Calendar, requiresOrganizer: true },
-    { name: 'Team Events', href: '/admin/team-events', icon: Users, requiresOrganizer: false },
-    { name: 'Financials', href: '/admin/financials', icon: BarChart3, requiresOrganizer: true },
-    { name: 'Scanner', href: '/scanner', icon: QrCode, requiresOrganizer: false },
+    { name: 'Dashboard', href: '/admin', icon: LayoutDashboard, requiresOwnEvents: true },
+    { name: 'Events', href: '/admin/events', icon: Calendar, requiresOwnEvents: true },
+    { name: 'Team Events', href: '/admin/team-events', icon: Users, requiresOwnEvents: false },
+    { name: 'Financials', href: '/admin/financials', icon: BarChart3, requiresOwnEvents: true },
+    { name: 'Scanner', href: '/scanner', icon: QrCode, requiresOwnEvents: false },
   ];
 
-  // Filter navigation based on role
+  // Filter navigation based on whether user has own events
   const navigation = allNavigation.filter(item =>
-    !item.requiresOrganizer || isOrganizerOrAdmin
+    !item.requiresOwnEvents || showOrganizerItems
   );
 
   const isActive = (path) => location.pathname === path;
+
+  // Determine branding
+  const isTeamOnlyUser = !showOrganizerItems && hasOwnEvents === false;
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white selection:bg-[#E23744] selection:text-white">
@@ -57,12 +87,12 @@ export default function AdminLayout() {
         <div className="flex flex-col h-full bg-[#09090b]/80 backdrop-blur-xl">
           {/* Logo */}
           <div className="flex items-center h-20 px-8 border-b border-white/5">
-            <Link to={isOrganizerOrAdmin ? "/admin" : "/admin/team-events"} className="flex items-center gap-3 group">
+            <Link to={showOrganizerItems ? "/admin" : "/admin/team-events"} className="flex items-center gap-3 group">
               <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#E23744] text-white shadow-lg shadow-red-900/20">
                 <Ticket size={16} fill="currentColor" className="transform -rotate-12" />
               </div>
               <span className="text-xl font-bold tracking-tight text-white">
-                {isOrganizerOrAdmin ? 'Occasio Admin' : 'Occasio Team'}
+                {isTeamOnlyUser ? 'Occasio Team' : 'Occasio Admin'}
               </span>
             </Link>
             <button
@@ -94,8 +124,8 @@ export default function AdminLayout() {
               );
             })}
 
-            {/* Create Event - only for organizers/admins */}
-            {isOrganizerOrAdmin && (
+            {/* Create Event - only for users with their own events or admin */}
+            {showOrganizerItems && (
               <div className="pt-8 mt-4 border-t border-white/5">
                 <Link
                   to="/admin/events/create"
@@ -158,4 +188,3 @@ export default function AdminLayout() {
     </div>
   );
 }
-
