@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Calendar, MapPin, DollarSign, Users, ArrowLeft, Loader2, Tag } from 'lucide-react';
+import { Calendar, MapPin, Users, ArrowLeft, Loader2, Tag } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import api, { getImageUrl } from '../../utils/api';
 import { format } from 'date-fns';
@@ -159,7 +159,7 @@ export default function EventDetailsPage() {
                     <span className="text-4xl font-bold text-white">Free</span>
                   ) : (
                     <>
-                      <span className="text-2xl font-bold text-[#E23744] align-top mt-1">{event.currency}</span>
+                      <span className="text-2xl font-bold text-[#E23744] align-top mt-1">₹</span>
                       <span className="text-5xl font-bold text-white tracking-tight">{(event.priceCents / 100).toFixed(2)}</span>
                     </>
                   )}

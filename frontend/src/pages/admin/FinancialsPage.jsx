@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, TrendingDown, DollarSign, Calendar, Ticket, Loader2, RefreshCw } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, IndianRupee, Calendar, Ticket, Loader2, RefreshCw } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 
@@ -83,7 +83,7 @@ export default function FinancialsPage() {
 
                     <div className="flex items-center justify-between mb-6 relative">
                         <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-500 ring-1 ring-emerald-500/20">
-                            <DollarSign size={24} />
+                            <IndianRupee size={24} />
                         </div>
                         {data.revenueGrowth !== 0 && (
                             <span className={`text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5

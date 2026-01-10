@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { DollarSign, Loader2 } from 'lucide-react';
+import { IndianRupee, Loader2 } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 
@@ -180,7 +180,7 @@ export default function RegistrationPage() {
             <div className="w-20 h-20 mx-auto rounded-full bg-white/5 flex items-center justify-center relative">
               <div className="absolute inset-0 rounded-full border-t-2 border-[#E23744] animate-spin" />
               <div className="w-10 h-10 rounded-full bg-[#E23744] flex items-center justify-center shadow-[0_0_20px_rgba(226,55,68,0.5)]">
-                <DollarSign className="text-white" size={20} />
+                <IndianRupee className="text-white" size={20} />
               </div>
             </div>
           </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { TrendingUp, Users, DollarSign, Calendar, CheckCircle, XCircle } from 'lucide-react';
+import { TrendingUp, Users, IndianRupee, Calendar, CheckCircle, XCircle } from 'lucide-react';
 import api from '../../utils/api';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -55,7 +55,7 @@ export default function AnalyticsPage() {
           trend={`${analytics?.totalRegistrations > 0 ? ((analytics.paidRegistrations / analytics.totalRegistrations) * 100).toFixed(1) : 0}%`}
         />
         <StatCard
-          icon={<DollarSign className="text-purple-500" />}
+          icon={<IndianRupee className="text-purple-500" />}
           title="Total Revenue"
           value={`₹${(analytics?.totalRevenue || 0).toFixed(2)}`}
           trend={`Avg: ₹${(analytics?.averageOrderValue || 0).toFixed(2)}`}
@@ -174,9 +174,8 @@ export default function AnalyticsPage() {
                   <div className="text-sm font-medium">
                     {format(new Date(reg.createdAt), 'MMM dd, HH:mm')}
                   </div>
-                  <div className={`text-xs ${
-                    reg.status === 'PAID' ? 'text-green-600' : 'text-yellow-600'
-                  }`}>
+                  <div className={`text-xs ${reg.status === 'PAID' ? 'text-green-600' : 'text-yellow-600'
+                    }`}>
                     {reg.status}
                   </div>
                 </div>

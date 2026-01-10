@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Users, DollarSign, TrendingUp, Shield } from 'lucide-react';
+import { Calendar, Users, IndianRupee, TrendingUp, Shield } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -114,7 +114,7 @@ export default function AdminDashboard() {
           color="purple"
         />
         <StatCard
-          icon={DollarSign}
+          icon={IndianRupee}
           label="Total Revenue"
           value={`₹${stats.totalRevenue.toFixed(2)}`}
           color="yellow"
