@@ -6,12 +6,12 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "prestart": "npm install --omit=dev && npx prisma generate",
+    "prestart": "npx prisma generate",
     "start": "node src/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "postinstall": "echo 'Skipping postinstall prisma generate for Azure compatibility'"
   },
   "engines": {
     "node": ">=18.0.0"
