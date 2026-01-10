@@ -71,7 +71,7 @@ router.post('/verify', authenticate, async (req, res) => {
 
     // Check if user has access to scan this event's tickets
     const eventId = ticket.order.registration.event.id;
-    const accessCheck = await checkEventAccess(req.user, eventId, ['MANAGER', 'SCANNER']);
+    const accessCheck = await checkEventAccess(req.user, eventId, ['SUPER_MANAGER', 'MANAGER', 'SCANNER']);
 
     if (!accessCheck.hasAccess) {
       return res.status(403).json({
