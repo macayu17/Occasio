@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Users, DollarSign, TrendingUp } from 'lucide-react';
+import { Calendar, Users, DollarSign, TrendingUp, Shield } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
 
 import BroadcastModal from '../../components/BroadcastModal';
 
 export default function AdminDashboard() {
+  const { user } = useAuth();
   const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
   const [stats, setStats] = useState({
     totalEvents: 0,
@@ -16,6 +18,8 @@ export default function AdminDashboard() {
   });
   const [recentEvents, setRecentEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const isAdmin = user?.role === 'ADMIN';
 
   useEffect(() => {
     fetchDashboardData();
@@ -63,8 +67,21 @@ export default function AdminDashboard() {
     <div className="space-y-8 animate-fade-in">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">My Overview</h1>
-          <p className="text-gray-400">Welcome to your command center.</p>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-3xl font-bold text-white">
+              {isAdmin ? 'Super Admin Overview' : 'My Overview'}
+            </h1>
+            {isAdmin && (
+              <span className="px-2 py-1 text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-full flex items-center gap-1">
+                <Shield size={12} /> ADMIN
+              </span>
+            )}
+          </div>
+          <p className="text-gray-400">
+            {isAdmin
+              ? 'Viewing all events across all organizers.'
+              : 'Welcome to your command center.'}
+          </p>
         </div>
         <button
           onClick={() => setIsBroadcastOpen(true)}
@@ -80,7 +97,7 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           icon={Calendar}
-          label="Total Events"
+          label={isAdmin ? "All Events" : "Total Events"}
           value={stats.totalEvents}
           color="blue"
         />
@@ -107,7 +124,9 @@ export default function AdminDashboard() {
       {/* Recent Events */}
       <div className="glass-card p-6 rounded-2xl bg-[#18181b]/60 border border-white/5">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-white">Recent Events</h2>
+          <h2 className="text-xl font-bold text-white">
+            {isAdmin ? 'All Recent Events' : 'Recent Events'}
+          </h2>
           <Link to="/admin/events" className="text-[#E23744] hover:text-[#E23744]/80 text-sm font-medium transition-colors">
             View All Events
           </Link>
@@ -131,7 +150,14 @@ export default function AdminDashboard() {
                 className="flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-colors border border-transparent hover:border-white/5 group"
               >
                 <div className="flex-1">
-                  <h3 className="font-semibold text-white group-hover:text-[#E23744] transition-colors mb-1">{event.title}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-white group-hover:text-[#E23744] transition-colors mb-1">{event.title}</h3>
+                    {isAdmin && event.organizer && (
+                      <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">
+                        by {event.organizer.name || event.organizer.email}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center text-sm text-gray-500 gap-4">
                     <span>{event.location}</span>
                     <span>•</span>
@@ -174,3 +200,4 @@ function StatCard({ icon: Icon, label, value, color }) {
     </div>
   );
 }
+
