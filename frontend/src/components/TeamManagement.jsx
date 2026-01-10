@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, Trash2, Shield, QrCode, Eye, X } from 'lucide-react';
+import { UserPlus, Trash2, Shield, QrCode, Eye, X, Crown } from 'lucide-react';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
 
 const ROLES = [
-    { id: 'MANAGER', label: 'Manager', description: 'Full event access', icon: Shield, color: 'text-purple-400' },
+    { id: 'SUPER_MANAGER', label: 'Super Manager', description: 'Full access + forms + financials', icon: Crown, color: 'text-yellow-400' },
+    { id: 'MANAGER', label: 'Manager', description: 'Edit event + check-in + analytics', icon: Shield, color: 'text-purple-400' },
     { id: 'SCANNER', label: 'Scanner', description: 'Check-in only', icon: QrCode, color: 'text-blue-400' },
     { id: 'STAFF', label: 'Staff', description: 'View only', icon: Eye, color: 'text-gray-400' }
 ];
@@ -137,8 +138,8 @@ export default function TeamManagement({ eventId }) {
                                         <label
                                             key={role.id}
                                             className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${inviteData.role === role.id
-                                                    ? 'border-[#E23744] bg-[#E23744]/10'
-                                                    : 'border-white/10 hover:border-white/20'
+                                                ? 'border-[#E23744] bg-[#E23744]/10'
+                                                : 'border-white/10 hover:border-white/20'
                                                 }`}
                                         >
                                             <input

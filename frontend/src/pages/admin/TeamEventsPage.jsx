@@ -143,7 +143,7 @@ export default function TeamEventsPage() {
                                 </p>
 
                                 {/* Actions */}
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap gap-2">
                                     {!event.acceptedAt ? (
                                         <button
                                             onClick={() => acceptInvitation(event.id)}
@@ -153,7 +153,8 @@ export default function TeamEventsPage() {
                                         </button>
                                     ) : (
                                         <>
-                                            {['MANAGER', 'SCANNER'].includes(event.teamRole) && (
+                                            {/* Check-In button for SCANNER, MANAGER, SUPER_MANAGER */}
+                                            {['SUPER_MANAGER', 'MANAGER', 'SCANNER'].includes(event.teamRole) && (
                                                 <Link
                                                     to={`/admin/team-event/${event.id}/checkin`}
                                                     className="flex-1 btn-primary text-sm py-2 text-center"
@@ -161,6 +162,28 @@ export default function TeamEventsPage() {
                                                     Check-In
                                                 </Link>
                                             )}
+
+                                            {/* Edit button for MANAGER and SUPER_MANAGER */}
+                                            {['SUPER_MANAGER', 'MANAGER'].includes(event.teamRole) && (
+                                                <Link
+                                                    to={`/admin/events/${event.id}/edit`}
+                                                    className="flex-1 btn-secondary text-sm py-2 text-center"
+                                                >
+                                                    Edit
+                                                </Link>
+                                            )}
+
+                                            {/* Form builder for SUPER_MANAGER only */}
+                                            {event.teamRole === 'SUPER_MANAGER' && (
+                                                <Link
+                                                    to={`/admin/events/${event.id}/form`}
+                                                    className="flex-1 btn-secondary text-sm py-2 text-center"
+                                                >
+                                                    Form
+                                                </Link>
+                                            )}
+
+                                            {/* View public page */}
                                             <a
                                                 href={`/events/${event.id}`}
                                                 target="_blank"

@@ -1,7 +1,7 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import prisma from '../config/db.js';
-import { authenticate, requireOrganizer } from '../middleware/auth.middleware.js';
+import { authenticate, requireOrganizer, checkEventAccess } from '../middleware/auth.middleware.js';
 import { upload } from '../middleware/upload.middleware.js';
 import { uploadToS3 } from '../utils/s3.util.js';
 import { uploadToCloudinary, isCloudinaryConfigured } from '../utils/cloudinary.util.js';
@@ -80,22 +80,16 @@ router.post('/events',
   }
 );
 
-// Update event
+// Update event (owners, admins, MANAGER, SUPER_MANAGER can edit)
 router.put('/events/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify ownership
-    const event = await prisma.event.findUnique({
-      where: { id }
-    });
+    // Check access - MANAGER and SUPER_MANAGER can edit
+    const access = await checkEventAccess(req.user, id, ['MANAGER', 'SUPER_MANAGER']);
 
-    if (!event) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-
-    if (event.organizerId !== req.user.id && req.user.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Not authorized' });
+    if (!access.hasAccess) {
+      return res.status(403).json({ error: access.error || 'Not authorized' });
     }
 
     const updatedEvent = await prisma.event.update({
@@ -197,22 +191,17 @@ router.post('/events/:id/poster-upload', upload.single('poster'), async (req, re
   }
 });
 
-// Create/Update event form
+// Create/Update event form (owners, admins, SUPER_MANAGER can edit)
 router.post('/events/:id/form', async (req, res) => {
   try {
     const { id } = req.params;
     const { schemaJson } = req.body;
 
-    const event = await prisma.event.findUnique({
-      where: { id }
-    });
+    // Check access - only SUPER_MANAGER (not regular MANAGER) can edit forms
+    const access = await checkEventAccess(req.user, id, ['SUPER_MANAGER']);
 
-    if (!event) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-
-    if (event.organizerId !== req.user.id && req.user.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Not authorized' });
+    if (!access.hasAccess) {
+      return res.status(403).json({ error: access.error || 'Not authorized' });
     }
 
     const form = await prisma.form.upsert({

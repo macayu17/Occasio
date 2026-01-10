@@ -301,9 +301,10 @@ model TeamMember {
 }
 
 enum TeamRole {
-  MANAGER    // Full access to event
-  SCANNER    // Check-in only
-  STAFF      // View only
+  SUPER_MANAGER // Full access including forms, financials
+  MANAGER       // Edit event + check-in + analytics
+  SCANNER       // Check-in only
+  STAFF         // View only
 }
 
 // ============================================
