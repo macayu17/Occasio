@@ -80,8 +80,8 @@ router.post('/events/:eventId', [
                 eventId,
                 code,
                 type,
-                amount,
-                maxUses,
+                amount: parseInt(amount, 10),
+                maxUses: maxUses ? parseInt(maxUses, 10) : null,
                 validFrom: validFrom ? new Date(validFrom) : null,
                 validUntil: validUntil ? new Date(validUntil) : null
             }
