@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Calendar, Mail, Lock, User } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -32,11 +33,11 @@ export default function RegisterPage() {
     setLoading(true);
 
     const result = await registerUser(formData.name, formData.email, formData.password);
-    
+
     if (result.success) {
       navigate('/admin');
     }
-    
+
     setLoading(false);
   };
 

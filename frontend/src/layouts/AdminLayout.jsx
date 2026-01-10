@@ -20,13 +20,22 @@ export default function AdminLayout() {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const navigation = [
-    { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
-    { name: 'Events', href: '/admin/events', icon: Calendar },
-    { name: 'Team Events', href: '/admin/team-events', icon: Users },
-    { name: 'Financials', href: '/admin/financials', icon: BarChart3 },
-    { name: 'Scanner', href: '/scanner', icon: QrCode },
+  // Check if user is an organizer/admin (can manage their own events)
+  const isOrganizerOrAdmin = user?.role === 'ADMIN' || user?.role === 'ORGANIZER';
+
+  // Navigation items - filtered based on user role
+  const allNavigation = [
+    { name: 'Dashboard', href: '/admin', icon: LayoutDashboard, requiresOrganizer: true },
+    { name: 'Events', href: '/admin/events', icon: Calendar, requiresOrganizer: true },
+    { name: 'Team Events', href: '/admin/team-events', icon: Users, requiresOrganizer: false },
+    { name: 'Financials', href: '/admin/financials', icon: BarChart3, requiresOrganizer: true },
+    { name: 'Scanner', href: '/scanner', icon: QrCode, requiresOrganizer: false },
   ];
+
+  // Filter navigation based on role
+  const navigation = allNavigation.filter(item =>
+    !item.requiresOrganizer || isOrganizerOrAdmin
+  );
 
   const isActive = (path) => location.pathname === path;
 
@@ -48,12 +57,12 @@ export default function AdminLayout() {
         <div className="flex flex-col h-full bg-[#09090b]/80 backdrop-blur-xl">
           {/* Logo */}
           <div className="flex items-center h-20 px-8 border-b border-white/5">
-            <Link to="/admin" className="flex items-center gap-3 group">
+            <Link to={isOrganizerOrAdmin ? "/admin" : "/admin/team-events"} className="flex items-center gap-3 group">
               <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#E23744] text-white shadow-lg shadow-red-900/20">
                 <Ticket size={16} fill="currentColor" className="transform -rotate-12" />
               </div>
               <span className="text-xl font-bold tracking-tight text-white">
-                Occasio Admin
+                {isOrganizerOrAdmin ? 'Occasio Admin' : 'Occasio Team'}
               </span>
             </Link>
             <button
@@ -85,18 +94,21 @@ export default function AdminLayout() {
               );
             })}
 
-            <div className="pt-8 mt-4 border-t border-white/5">
-              <Link
-                to="/admin/events/create"
-                className="flex items-center gap-3 px-4 py-3 rounded-xl border border-white/10 text-gray-300 hover:border-[#E23744] hover:text-[#E23744] transition-all group"
-                onClick={() => setSidebarOpen(false)}
-              >
-                <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-[#E23744] group-hover:text-white transition-colors">
-                  <Plus size={16} />
-                </div>
-                <span className="font-medium">Create Event</span>
-              </Link>
-            </div>
+            {/* Create Event - only for organizers/admins */}
+            {isOrganizerOrAdmin && (
+              <div className="pt-8 mt-4 border-t border-white/5">
+                <Link
+                  to="/admin/events/create"
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl border border-white/10 text-gray-300 hover:border-[#E23744] hover:text-[#E23744] transition-all group"
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-[#E23744] group-hover:text-white transition-colors">
+                    <Plus size={16} />
+                  </div>
+                  <span className="font-medium">Create Event</span>
+                </Link>
+              </div>
+            )}
           </nav>
 
           {/* User section */}
@@ -146,3 +158,4 @@ export default function AdminLayout() {
     </div>
   );
 }
+
