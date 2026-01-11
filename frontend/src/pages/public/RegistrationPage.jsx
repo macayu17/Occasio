@@ -379,9 +379,10 @@ export default function RegistrationPage() {
                         {paymentGateway === 'RAZORPAY' && <div className="w-2 h-2 rounded-full bg-[#E23744]" />}
                       </div>
                       {/* Razorpay Logo */}
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="flex-shrink-0">
-                        <rect width="24" height="24" rx="4" fill="#072654" />
-                        <path d="M7.5 6L10.5 18H13.5L16.5 6H13.5L12 12L10.5 6H7.5Z" fill="white" />
+                      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" className="flex-shrink-0">
+                        <rect width="28" height="28" rx="6" fill="#072654" />
+                        <path d="M8 7L11.5 21H14.5L12 11L14 7H8Z" fill="#3395FF" />
+                        <path d="M14.5 7L12 17H15L18 11L20 7H14.5Z" fill="white" />
                       </svg>
                       <div>
                         <div className="font-medium">Razorpay</div>
@@ -408,10 +409,10 @@ export default function RegistrationPage() {
                         {paymentGateway === 'PHONEPE' && <div className="w-2 h-2 rounded-full bg-purple-500" />}
                       </div>
                       {/* PhonePe Logo */}
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="flex-shrink-0">
-                        <rect width="24" height="24" rx="4" fill="#5F259F" />
-                        <path d="M12 4C14.5 4 16.5 6 16.5 8.5V12H14V8.5C14 7.12 12.88 6 11.5 6C10.12 6 9 7.12 9 8.5V16H6.5V8.5C6.5 6 8.5 4 11 4H12Z" fill="white" />
-                        <circle cx="12" cy="17" r="2" fill="white" />
+                      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" className="flex-shrink-0">
+                        <rect width="28" height="28" rx="6" fill="#5F259F" />
+                        <path d="M10 8H14C16.2 8 18 9.8 18 12V13H15V12C15 11.45 14.55 11 14 11H13V20H10V8Z" fill="white" />
+                        <circle cx="14" cy="20" r="2" fill="#5CDB5C" />
                       </svg>
                       <div>
                         <div className="font-medium">PhonePe</div>

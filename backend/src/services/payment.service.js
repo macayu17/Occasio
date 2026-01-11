@@ -48,12 +48,12 @@ export function verifyRazorpaySignature(body, signature) {
 const PHONEPE_CONFIG = {
   sandbox: {
     baseUrl: 'https://api-preprod.phonepe.com/apis/pg-sandbox',
-    // Test credentials - use for sandbox testing
+    // Test phone/OTP for sandbox testing
     testPhone: '9999999999',
     testOtp: '123456'
   },
   production: {
-    baseUrl: 'https://api.phonepe.com/apis/hermes'
+    baseUrl: 'https://api.phonepe.com/apis/pg'
   }
 };
 
@@ -62,40 +62,45 @@ function getPhonePeBaseUrl() {
   return PHONEPE_CONFIG[env]?.baseUrl || PHONEPE_CONFIG.sandbox.baseUrl;
 }
 
-function generatePhonePeChecksum(payload, endpoint) {
-  const saltKey = process.env.PHONEPE_SALT_KEY;
+function generatePhonePeChecksum(base64Payload, endpoint) {
+  const clientSecret = process.env.PHONEPE_CLIENT_SECRET;
   const saltIndex = process.env.PHONEPE_SALT_INDEX || '1';
 
-  const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
-  const stringToHash = base64Payload + endpoint + saltKey;
+  const stringToHash = base64Payload + endpoint + clientSecret;
   const sha256Hash = crypto.createHash('sha256').update(stringToHash).digest('hex');
 
-  return {
-    base64Payload,
-    checksum: sha256Hash + '###' + saltIndex
-  };
+  return sha256Hash + '###' + saltIndex;
 }
 
 export async function createPhonePePayment(order, callbackUrl) {
   try {
-    const merchantId = process.env.PHONEPE_MERCHANT_ID;
+    const clientId = process.env.PHONEPE_CLIENT_ID;
+    const clientSecret = process.env.PHONEPE_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+      throw new Error('PhonePe credentials not configured');
+    }
+
     const merchantTransactionId = order.id.replace(/-/g, '').slice(0, 35); // PhonePe limit: 35 chars
 
     const payload = {
-      merchantId,
+      merchantId: clientId,
       merchantTransactionId,
-      merchantUserId: order.registration?.userEmail || 'guest',
+      merchantUserId: order.registration?.userEmail?.replace(/[^a-zA-Z0-9]/g, '') || 'guest',
       amount: order.amountCents, // Amount in paise
       redirectUrl: callbackUrl,
-      redirectMode: 'POST',
-      callbackUrl: `${process.env.FRONTEND_URL}/api/webhooks/phonepe`,
+      redirectMode: 'REDIRECT',
+      callbackUrl: callbackUrl,
       paymentInstrument: {
         type: 'PAY_PAGE'
       }
     };
 
+    const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
     const endpoint = '/pg/v1/pay';
-    const { base64Payload, checksum } = generatePhonePeChecksum(payload, endpoint);
+    const checksum = generatePhonePeChecksum(base64Payload, endpoint);
+
+    console.log('PhonePe payment request:', { clientId, merchantTransactionId, amount: order.amountCents });
 
     const response = await fetch(`${getPhonePeBaseUrl()}${endpoint}`, {
       method: 'POST',
@@ -107,6 +112,7 @@ export async function createPhonePePayment(order, callbackUrl) {
     });
 
     const data = await response.json();
+    console.log('PhonePe payment initiation failed:', data);
 
     if (data.success && data.data?.instrumentResponse?.redirectInfo?.url) {
       return {
@@ -126,12 +132,12 @@ export async function createPhonePePayment(order, callbackUrl) {
 
 export async function checkPhonePePaymentStatus(merchantTransactionId) {
   try {
-    const merchantId = process.env.PHONEPE_MERCHANT_ID;
-    const saltKey = process.env.PHONEPE_SALT_KEY;
+    const clientId = process.env.PHONEPE_CLIENT_ID;
+    const clientSecret = process.env.PHONEPE_CLIENT_SECRET;
     const saltIndex = process.env.PHONEPE_SALT_INDEX || '1';
 
-    const endpoint = `/pg/v1/status/${merchantId}/${merchantTransactionId}`;
-    const stringToHash = endpoint + saltKey;
+    const endpoint = `/pg/v1/status/${clientId}/${merchantTransactionId}`;
+    const stringToHash = endpoint + clientSecret;
     const sha256Hash = crypto.createHash('sha256').update(stringToHash).digest('hex');
     const checksum = sha256Hash + '###' + saltIndex;
 
@@ -140,11 +146,12 @@ export async function checkPhonePePaymentStatus(merchantTransactionId) {
       headers: {
         'Content-Type': 'application/json',
         'X-VERIFY': checksum,
-        'X-MERCHANT-ID': merchantId
+        'X-MERCHANT-ID': clientId
       }
     });
 
     const data = await response.json();
+    console.log('PhonePe status check response:', data);
 
     return {
       success: data.success,
@@ -163,10 +170,10 @@ export async function checkPhonePePaymentStatus(merchantTransactionId) {
 
 export function verifyPhonePeCallback(xVerifyHeader, responseBody) {
   try {
-    const saltKey = process.env.PHONEPE_SALT_KEY;
+    const clientSecret = process.env.PHONEPE_CLIENT_SECRET;
     const saltIndex = process.env.PHONEPE_SALT_INDEX || '1';
 
-    const stringToHash = responseBody + '/pg/v1/status' + saltKey;
+    const stringToHash = responseBody + '/pg/v1/status' + clientSecret;
     const sha256Hash = crypto.createHash('sha256').update(stringToHash).digest('hex');
     const expectedChecksum = sha256Hash + '###' + saltIndex;
 
