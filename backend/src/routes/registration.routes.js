@@ -280,7 +280,12 @@ router.post('/orders/:id/verify-phonepe', async (req, res) => {
       // Enqueue ticket generation
       await enqueueTicketGeneration(order.id);
 
-      return res.json({ success: true, message: 'Payment verified successfully' });
+      return res.json({
+        success: true,
+        message: 'Payment verified successfully',
+        eventId: order.registration.eventId,
+        orderId: order.id
+      });
     }
 
     if (statusResponse.paymentState === 'PENDING') {

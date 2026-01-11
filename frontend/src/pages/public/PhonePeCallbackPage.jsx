@@ -30,7 +30,12 @@ export default function PhonePeCallbackPage() {
                 setStatus('success');
                 toast.success('Payment successful! Check your email for the ticket.');
                 setTimeout(() => {
-                    navigate('/success', { state: { orderId } });
+                    navigate('/success', {
+                        state: {
+                            orderId,
+                            eventId: response.data.eventId
+                        }
+                    });
                 }, 2000);
             } else if (response.data.state === 'PENDING') {
                 setStatus('pending');
