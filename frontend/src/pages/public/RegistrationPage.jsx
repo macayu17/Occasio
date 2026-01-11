@@ -379,11 +379,7 @@ export default function RegistrationPage() {
                         {paymentGateway === 'RAZORPAY' && <div className="w-2 h-2 rounded-full bg-[#E23744]" />}
                       </div>
                       {/* Razorpay Logo */}
-                      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" className="flex-shrink-0">
-                        <rect width="28" height="28" rx="6" fill="#072654" />
-                        <path d="M8 7L11.5 21H14.5L12 11L14 7H8Z" fill="#3395FF" />
-                        <path d="M14.5 7L12 17H15L18 11L20 7H14.5Z" fill="white" />
-                      </svg>
+                      <img src="/razorpay-logo.png" alt="Razorpay" className="w-10 h-6 object-contain flex-shrink-0" />
                       <div>
                         <div className="font-medium">Razorpay</div>
                         <div className="text-xs text-gray-500">UPI, Cards, Netbanking</div>
@@ -409,11 +405,7 @@ export default function RegistrationPage() {
                         {paymentGateway === 'PHONEPE' && <div className="w-2 h-2 rounded-full bg-purple-500" />}
                       </div>
                       {/* PhonePe Logo */}
-                      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" className="flex-shrink-0">
-                        <rect width="28" height="28" rx="6" fill="#5F259F" />
-                        <path d="M10 8H14C16.2 8 18 9.8 18 12V13H15V12C15 11.45 14.55 11 14 11H13V20H10V8Z" fill="white" />
-                        <circle cx="14" cy="20" r="2" fill="#5CDB5C" />
-                      </svg>
+                      <img src="/phonepe-logo.png" alt="PhonePe" className="w-10 h-6 object-contain flex-shrink-0" />
                       <div>
                         <div className="font-medium">PhonePe</div>
                         <div className="text-xs text-gray-500">UPI, Wallet</div>

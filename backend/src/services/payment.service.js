@@ -45,6 +45,13 @@ export function verifyRazorpaySignature(body, signature) {
 // PHONEPE PAYMENT GATEWAY
 // ============================================
 
+// Official PhonePe Sandbox Test Credentials
+const PHONEPE_SANDBOX_CREDENTIALS = {
+  merchantId: 'PGTESTPAYUAT',
+  saltKey: '099eb0cd-02cf-4e2a-8aca-3e6c6aff0399',
+  saltIndex: '1'
+};
+
 const PHONEPE_CONFIG = {
   sandbox: {
     baseUrl: 'https://api-preprod.phonepe.com/apis/pg-sandbox',
@@ -57,36 +64,46 @@ const PHONEPE_CONFIG = {
   }
 };
 
+function getPhonePeCredentials() {
+  const env = process.env.PHONEPE_ENV || 'sandbox';
+
+  if (env === 'sandbox') {
+    // Use official sandbox test credentials
+    return {
+      merchantId: PHONEPE_SANDBOX_CREDENTIALS.merchantId,
+      saltKey: PHONEPE_SANDBOX_CREDENTIALS.saltKey,
+      saltIndex: PHONEPE_SANDBOX_CREDENTIALS.saltIndex
+    };
+  }
+
+  // Production uses user's credentials
+  return {
+    merchantId: process.env.PHONEPE_CLIENT_ID,
+    saltKey: process.env.PHONEPE_CLIENT_SECRET,
+    saltIndex: process.env.PHONEPE_SALT_INDEX || '1'
+  };
+}
+
 function getPhonePeBaseUrl() {
   const env = process.env.PHONEPE_ENV || 'sandbox';
   return PHONEPE_CONFIG[env]?.baseUrl || PHONEPE_CONFIG.sandbox.baseUrl;
 }
 
-function generatePhonePeChecksum(base64Payload, endpoint) {
-  const clientSecret = process.env.PHONEPE_CLIENT_SECRET;
-  const saltIndex = process.env.PHONEPE_SALT_INDEX || '1';
-
-  const stringToHash = base64Payload + endpoint + clientSecret;
+function generatePhonePeChecksum(base64Payload, endpoint, saltKey, saltIndex) {
+  const stringToHash = base64Payload + endpoint + saltKey;
   const sha256Hash = crypto.createHash('sha256').update(stringToHash).digest('hex');
-
   return sha256Hash + '###' + saltIndex;
 }
 
 export async function createPhonePePayment(order, callbackUrl) {
   try {
-    const clientId = process.env.PHONEPE_CLIENT_ID;
-    const clientSecret = process.env.PHONEPE_CLIENT_SECRET;
-
-    if (!clientId || !clientSecret) {
-      throw new Error('PhonePe credentials not configured');
-    }
-
-    const merchantTransactionId = order.id.replace(/-/g, '').slice(0, 35); // PhonePe limit: 35 chars
+    const creds = getPhonePeCredentials();
+    const merchantTransactionId = order.id.replace(/-/g, '').slice(0, 35);
 
     const payload = {
-      merchantId: clientId,
+      merchantId: creds.merchantId,
       merchantTransactionId,
-      merchantUserId: order.registration?.userEmail?.replace(/[^a-zA-Z0-9]/g, '') || 'guest',
+      merchantUserId: 'USER' + Date.now(),
       amount: order.amountCents, // Amount in paise
       redirectUrl: callbackUrl,
       redirectMode: 'REDIRECT',
@@ -98,9 +115,14 @@ export async function createPhonePePayment(order, callbackUrl) {
 
     const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
     const endpoint = '/pg/v1/pay';
-    const checksum = generatePhonePeChecksum(base64Payload, endpoint);
+    const checksum = generatePhonePeChecksum(base64Payload, endpoint, creds.saltKey, creds.saltIndex);
 
-    console.log('PhonePe payment request:', { clientId, merchantTransactionId, amount: order.amountCents });
+    console.log('PhonePe payment request:', {
+      merchantId: creds.merchantId,
+      merchantTransactionId,
+      amount: order.amountCents,
+      env: process.env.PHONEPE_ENV || 'sandbox'
+    });
 
     const response = await fetch(`${getPhonePeBaseUrl()}${endpoint}`, {
       method: 'POST',
@@ -112,7 +134,7 @@ export async function createPhonePePayment(order, callbackUrl) {
     });
 
     const data = await response.json();
-    console.log('PhonePe payment initiation failed:', data);
+    console.log('PhonePe response:', data);
 
     if (data.success && data.data?.instrumentResponse?.redirectInfo?.url) {
       return {
@@ -132,21 +154,19 @@ export async function createPhonePePayment(order, callbackUrl) {
 
 export async function checkPhonePePaymentStatus(merchantTransactionId) {
   try {
-    const clientId = process.env.PHONEPE_CLIENT_ID;
-    const clientSecret = process.env.PHONEPE_CLIENT_SECRET;
-    const saltIndex = process.env.PHONEPE_SALT_INDEX || '1';
+    const creds = getPhonePeCredentials();
 
-    const endpoint = `/pg/v1/status/${clientId}/${merchantTransactionId}`;
-    const stringToHash = endpoint + clientSecret;
+    const endpoint = `/pg/v1/status/${creds.merchantId}/${merchantTransactionId}`;
+    const stringToHash = endpoint + creds.saltKey;
     const sha256Hash = crypto.createHash('sha256').update(stringToHash).digest('hex');
-    const checksum = sha256Hash + '###' + saltIndex;
+    const checksum = sha256Hash + '###' + creds.saltIndex;
 
     const response = await fetch(`${getPhonePeBaseUrl()}${endpoint}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         'X-VERIFY': checksum,
-        'X-MERCHANT-ID': clientId
+        'X-MERCHANT-ID': creds.merchantId
       }
     });
 
@@ -159,7 +179,7 @@ export async function checkPhonePePaymentStatus(merchantTransactionId) {
       transactionId: data.data?.transactionId,
       merchantTransactionId: data.data?.merchantTransactionId,
       amount: data.data?.amount,
-      paymentState: data.data?.state, // COMPLETED, PENDING, FAILED
+      paymentState: data.data?.state,
       paymentInstrument: data.data?.paymentInstrument
     };
   } catch (error) {
@@ -170,12 +190,11 @@ export async function checkPhonePePaymentStatus(merchantTransactionId) {
 
 export function verifyPhonePeCallback(xVerifyHeader, responseBody) {
   try {
-    const clientSecret = process.env.PHONEPE_CLIENT_SECRET;
-    const saltIndex = process.env.PHONEPE_SALT_INDEX || '1';
+    const creds = getPhonePeCredentials();
 
-    const stringToHash = responseBody + '/pg/v1/status' + clientSecret;
+    const stringToHash = responseBody + '/pg/v1/status' + creds.saltKey;
     const sha256Hash = crypto.createHash('sha256').update(stringToHash).digest('hex');
-    const expectedChecksum = sha256Hash + '###' + saltIndex;
+    const expectedChecksum = sha256Hash + '###' + creds.saltIndex;
 
     return xVerifyHeader === expectedChecksum;
   } catch (error) {
@@ -183,3 +202,4 @@ export function verifyPhonePeCallback(xVerifyHeader, responseBody) {
     return false;
   }
 }
+
