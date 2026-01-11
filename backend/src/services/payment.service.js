@@ -45,10 +45,11 @@ export function verifyRazorpaySignature(body, signature) {
 // PHONEPE PAYMENT GATEWAY
 // ============================================
 
-// Official PhonePe Sandbox Test Credentials
+// Official PhonePe Sandbox Test Credentials (2024-2025)
+// Using PGTESTPAYUAT86 as recommended - PGTESTPAYUAT may have rate limits
 const PHONEPE_SANDBOX_CREDENTIALS = {
-  merchantId: 'PGTESTPAYUAT',
-  saltKey: '099eb0cd-02cf-4e2a-8aca-3e6c6aff0399',
+  merchantId: 'PGTESTPAYUAT86',
+  saltKey: '96434309-7796-489d-8924-ab56988a6076',
   saltIndex: '1'
 };
 
