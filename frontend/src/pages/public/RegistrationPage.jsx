@@ -362,8 +362,8 @@ export default function RegistrationPage() {
                   <div className="flex gap-3">
                     <label
                       className={`flex-1 flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${paymentGateway === 'RAZORPAY'
-                          ? 'bg-[#E23744]/10 border-[#E23744]/50 text-white'
-                          : 'bg-[#09090b]/50 border-white/10 text-gray-400 hover:border-white/20'
+                        ? 'bg-[#E23744]/10 border-[#E23744]/50 text-white'
+                        : 'bg-[#09090b]/50 border-white/10 text-gray-400 hover:border-white/20'
                         }`}
                     >
                       <input
@@ -378,6 +378,11 @@ export default function RegistrationPage() {
                         }`}>
                         {paymentGateway === 'RAZORPAY' && <div className="w-2 h-2 rounded-full bg-[#E23744]" />}
                       </div>
+                      {/* Razorpay Logo */}
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="flex-shrink-0">
+                        <rect width="24" height="24" rx="4" fill="#072654" />
+                        <path d="M7.5 6L10.5 18H13.5L16.5 6H13.5L12 12L10.5 6H7.5Z" fill="white" />
+                      </svg>
                       <div>
                         <div className="font-medium">Razorpay</div>
                         <div className="text-xs text-gray-500">UPI, Cards, Netbanking</div>
@@ -386,8 +391,8 @@ export default function RegistrationPage() {
 
                     <label
                       className={`flex-1 flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${paymentGateway === 'PHONEPE'
-                          ? 'bg-purple-500/10 border-purple-500/50 text-white'
-                          : 'bg-[#09090b]/50 border-white/10 text-gray-400 hover:border-white/20'
+                        ? 'bg-purple-500/10 border-purple-500/50 text-white'
+                        : 'bg-[#09090b]/50 border-white/10 text-gray-400 hover:border-white/20'
                         }`}
                     >
                       <input
@@ -402,6 +407,12 @@ export default function RegistrationPage() {
                         }`}>
                         {paymentGateway === 'PHONEPE' && <div className="w-2 h-2 rounded-full bg-purple-500" />}
                       </div>
+                      {/* PhonePe Logo */}
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="flex-shrink-0">
+                        <rect width="24" height="24" rx="4" fill="#5F259F" />
+                        <path d="M12 4C14.5 4 16.5 6 16.5 8.5V12H14V8.5C14 7.12 12.88 6 11.5 6C10.12 6 9 7.12 9 8.5V16H6.5V8.5C6.5 6 8.5 4 11 4H12Z" fill="white" />
+                        <circle cx="12" cy="17" r="2" fill="white" />
+                      </svg>
                       <div>
                         <div className="font-medium">PhonePe</div>
                         <div className="text-xs text-gray-500">UPI, Wallet</div>
