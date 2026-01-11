@@ -8,6 +8,7 @@ import HomePage from './pages/public/HomePage';
 import EventDetailsPage from './pages/public/EventDetailsPage';
 import RegistrationPage from './pages/public/RegistrationPage';
 import SuccessPage from './pages/public/SuccessPage';
+import PhonePeCallbackPage from './pages/public/PhonePeCallbackPage';
 
 // Scanner Page
 import ScannerPage from './pages/scanner/ScannerPage';
@@ -58,6 +59,7 @@ function App() {
             <Route path="/events/:id" element={<EventDetailsPage />} />
             <Route path="/events/:id/register" element={<RegistrationPage />} />
             <Route path="/success" element={<SuccessPage />} />
+            <Route path="/payment/phonepe/callback" element={<PhonePeCallbackPage />} />
           </Route>
 
           {/* Auth Routes */}

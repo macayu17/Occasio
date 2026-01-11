@@ -138,6 +138,7 @@ model Order {
 enum PaymentProvider {
   STRIPE
   RAZORPAY
+  PHONEPE
 }
 
 enum OrderStatus {

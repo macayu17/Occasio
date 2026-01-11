@@ -17,6 +17,7 @@ export default function RegistrationPage() {
   const [discountCode, setDiscountCode] = useState('');
   const [appliedDiscount, setAppliedDiscount] = useState(null);
   const [discountMsg, setDiscountMsg] = useState('');
+  const [paymentGateway, setPaymentGateway] = useState('RAZORPAY'); // RAZORPAY or PHONEPE
 
   const { register, handleSubmit, formState: { errors } } = useForm();
 
@@ -77,10 +78,11 @@ export default function RegistrationPage() {
     setSubmitting(true);
 
     try {
-      // Register for event
+      // Register for event with selected payment gateway
       const regResponse = await api.post(`/events/${id}/register`, {
         formResponse: data,
-        discountCode: appliedDiscount ? appliedDiscount.code : undefined
+        discountCode: appliedDiscount ? appliedDiscount.code : undefined,
+        paymentGateway: paymentGateway
       });
 
       const { order, requiresPayment } = regResponse.data;
@@ -96,7 +98,17 @@ export default function RegistrationPage() {
         `/orders/${order.id}/create-checkout-session`
       );
 
-      const { orderId, amount, currency, keyId } = checkoutResponse.data;
+      const checkoutData = checkoutResponse.data;
+
+      // Handle PhonePe redirect flow
+      if (checkoutData.provider === 'PHONEPE') {
+        // Redirect to PhonePe payment page
+        window.location.href = checkoutData.paymentUrl;
+        return;
+      }
+
+      // Handle Razorpay popup flow
+      const { orderId, amount, currency, keyId } = checkoutData;
 
       // Check if Razorpay is loaded
       if (typeof window.Razorpay === 'undefined') {
@@ -340,6 +352,62 @@ export default function RegistrationPage() {
                       {discountMsg.text}
                     </p>
                   )}
+                </div>
+              )}
+
+              {/* Payment Gateway Selector */}
+              {event.priceCents > 0 && calculateTotal() > 0 && (
+                <div className="space-y-3">
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider ml-1">Payment Method</label>
+                  <div className="flex gap-3">
+                    <label
+                      className={`flex-1 flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${paymentGateway === 'RAZORPAY'
+                          ? 'bg-[#E23744]/10 border-[#E23744]/50 text-white'
+                          : 'bg-[#09090b]/50 border-white/10 text-gray-400 hover:border-white/20'
+                        }`}
+                    >
+                      <input
+                        type="radio"
+                        name="paymentGateway"
+                        value="RAZORPAY"
+                        checked={paymentGateway === 'RAZORPAY'}
+                        onChange={(e) => setPaymentGateway(e.target.value)}
+                        className="sr-only"
+                      />
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${paymentGateway === 'RAZORPAY' ? 'border-[#E23744]' : 'border-gray-500'
+                        }`}>
+                        {paymentGateway === 'RAZORPAY' && <div className="w-2 h-2 rounded-full bg-[#E23744]" />}
+                      </div>
+                      <div>
+                        <div className="font-medium">Razorpay</div>
+                        <div className="text-xs text-gray-500">UPI, Cards, Netbanking</div>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`flex-1 flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${paymentGateway === 'PHONEPE'
+                          ? 'bg-purple-500/10 border-purple-500/50 text-white'
+                          : 'bg-[#09090b]/50 border-white/10 text-gray-400 hover:border-white/20'
+                        }`}
+                    >
+                      <input
+                        type="radio"
+                        name="paymentGateway"
+                        value="PHONEPE"
+                        checked={paymentGateway === 'PHONEPE'}
+                        onChange={(e) => setPaymentGateway(e.target.value)}
+                        className="sr-only"
+                      />
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${paymentGateway === 'PHONEPE' ? 'border-purple-500' : 'border-gray-500'
+                        }`}>
+                        {paymentGateway === 'PHONEPE' && <div className="w-2 h-2 rounded-full bg-purple-500" />}
+                      </div>
+                      <div>
+                        <div className="font-medium">PhonePe</div>
+                        <div className="text-xs text-gray-500">UPI, Wallet</div>
+                      </div>
+                    </label>
+                  </div>
                 </div>
               )}
 

@@ -3,7 +3,7 @@ import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import crypto from 'crypto';
 import prisma from '../config/db.js';
-import { createRazorpayOrder } from '../services/payment.service.js';
+import { createRazorpayOrder, createPhonePePayment, checkPhonePePaymentStatus } from '../services/payment.service.js';
 import { enqueueTicketGeneration } from '../services/queue.service.js';
 
 const router = express.Router();
@@ -14,7 +14,8 @@ addFormats(ajv);
 router.post('/events/:id/register', async (req, res) => {
   try {
     const { id } = req.params;
-    const { formResponse, discountCode } = req.body;
+    const { formResponse, discountCode, paymentGateway } = req.body;
+    const selectedGateway = paymentGateway === 'PHONEPE' ? 'PHONEPE' : 'RAZORPAY';
 
     // Get event and form
     const event = await prisma.event.findUnique({
@@ -99,13 +100,13 @@ router.post('/events/:id/register', async (req, res) => {
       }
     }
 
-    // Create order
+    // Create order with selected payment gateway
     const order = await prisma.order.create({
       data: {
         registrationId: registration.id,
         amountCents: amountCents,
         currency: event.currency,
-        provider: 'RAZORPAY',
+        provider: selectedGateway,
         status: 'CREATED',
         discountCodeId: validDiscount ? validDiscount.id : undefined
       }
@@ -184,7 +185,29 @@ router.post('/orders/:id/create-checkout-session', async (req, res) => {
       return res.status(400).json({ error: 'Order already paid' });
     }
 
-    // Create payment gateway order
+    // Handle based on payment provider
+    if (order.provider === 'PHONEPE') {
+      // PhonePe redirect-based flow
+      const callbackUrl = `${process.env.FRONTEND_URL}/payment/phonepe/callback?orderId=${order.id}`;
+      const phonePeResponse = await createPhonePePayment(order, callbackUrl);
+
+      // Update order with transaction ID
+      await prisma.order.update({
+        where: { id },
+        data: {
+          providerOrderId: phonePeResponse.transactionId,
+          paymentData: { transactionId: phonePeResponse.transactionId }
+        }
+      });
+
+      return res.json({
+        provider: 'PHONEPE',
+        paymentUrl: phonePeResponse.paymentUrl,
+        transactionId: phonePeResponse.transactionId
+      });
+    }
+
+    // Razorpay popup-based flow (default)
     const paymentOrder = await createRazorpayOrder(order);
 
     // Update order with provider order ID
@@ -197,6 +220,7 @@ router.post('/orders/:id/create-checkout-session', async (req, res) => {
     });
 
     res.json({
+      provider: 'RAZORPAY',
       orderId: paymentOrder.id,
       amount: paymentOrder.amount,
       currency: paymentOrder.currency,
@@ -205,6 +229,68 @@ router.post('/orders/:id/create-checkout-session', async (req, res) => {
   } catch (error) {
     console.error('Create checkout session error:', error);
     res.status(500).json({ error: 'Failed to create checkout session' });
+  }
+});
+
+// Verify PhonePe payment status (called after redirect)
+router.post('/orders/:id/verify-phonepe', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: { registration: true }
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    if (order.status === 'PAID') {
+      return res.json({ success: true, message: 'Payment already verified' });
+    }
+
+    // Check payment status with PhonePe
+    const statusResponse = await checkPhonePePaymentStatus(order.providerOrderId);
+
+    if (statusResponse.success && statusResponse.paymentState === 'COMPLETED') {
+      // Update order status
+      await prisma.order.update({
+        where: { id },
+        data: {
+          status: 'PAID',
+          paymentData: statusResponse
+        }
+      });
+
+      // Update registration status
+      await prisma.registration.update({
+        where: { id: order.registrationId },
+        data: { status: 'PAID' }
+      });
+
+      // Increment discount usage if applicable
+      if (order.discountCodeId) {
+        await prisma.discountCode.update({
+          where: { id: order.discountCodeId },
+          data: { usedCount: { increment: 1 } }
+        });
+      }
+
+      // Enqueue ticket generation
+      await enqueueTicketGeneration(order.id);
+
+      return res.json({ success: true, message: 'Payment verified successfully' });
+    }
+
+    if (statusResponse.paymentState === 'PENDING') {
+      return res.status(202).json({ success: false, message: 'Payment pending', state: 'PENDING' });
+    }
+
+    return res.status(400).json({ success: false, message: 'Payment failed', state: statusResponse.paymentState });
+  } catch (error) {
+    console.error('PhonePe verification error:', error);
+    res.status(500).json({ error: 'Failed to verify PhonePe payment' });
   }
 });
 
