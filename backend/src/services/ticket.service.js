@@ -190,7 +190,7 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
   const cardX = MARGIN;
   const cardY = MARGIN;
   const cardWidth = CONTENT_WIDTH;
-  const cardHeight = 700;
+  const cardHeight = 520;
 
   // Card background with gradient simulation (layered rectangles)
   drawRoundedRect(doc, cardX, cardY, cardWidth, cardHeight, borderRadius, COLORS.cardBg);
@@ -250,7 +250,7 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
   if (showLogo) {
     doc.font(fontBold).fontSize(9)
       .fillColor(primaryColor)
-      .text('✦ EVENT TICKET', cardX + 25, badgeY);
+      .text('* EVENT TICKET', cardX + 25, badgeY);
   }
 
   // Event title on header
