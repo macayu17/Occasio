@@ -618,69 +618,114 @@ function TicketStyleTab({ eventId, currentStyle }) {
                 </button>
             </div>
 
-            {/* Live Preview */}
+            {/* Live Preview - Matches PDF design */}
             <div className="lg:sticky lg:top-6">
                 <label className="block text-sm font-medium text-gray-400 mb-3">Live Preview</label>
                 <div
-                    className="p-6 transition-all"
+                    className="overflow-hidden transition-all"
                     style={{
                         backgroundColor: style.backgroundColor,
                         borderRadius: `${style.borderRadius}px`,
-                        border: style.showBorder ? `2px solid ${style.primaryColor}40` : 'none',
-                        fontFamily: style.fontFamily
+                        fontFamily: style.fontFamily === 'Times-Roman' ? 'Times New Roman, serif' :
+                            style.fontFamily === 'Courier' ? 'Courier New, monospace' : 'Helvetica, Arial, sans-serif'
                     }}
                 >
-                    <div className="flex justify-between items-start mb-6">
-                        <div>
-                            <h4 className="text-2xl font-bold" style={{ color: style.primaryColor }}>
-                                Tech Summit 2026
-                            </h4>
-                            <p className="text-sm mt-1" style={{ color: style.accentColor + '99' }}>
-                                Annual Developer Conference
-                            </p>
-                        </div>
-                        {style.showLogo && (
-                            <div
-                                className="w-12 h-12 rounded-lg flex items-center justify-center text-xl font-bold"
-                                style={{ backgroundColor: style.primaryColor, color: style.accentColor }}
-                            >
-                                O
+                    {/* Inner card with optional border */}
+                    <div
+                        className="m-3 rounded-lg overflow-hidden"
+                        style={{
+                            backgroundColor: 'rgb(25, 25, 35)',
+                            border: style.showBorder ? `2px solid ${style.primaryColor}` : 'none',
+                            borderRadius: `${Math.max(0, parseInt(style.borderRadius) - 4)}px`
+                        }}
+                    >
+                        {/* Header Section */}
+                        <div
+                            className="h-24 flex items-end p-4"
+                            style={{
+                                background: style.headerImage
+                                    ? `linear-gradient(to top, rgba(0,0,0,0.7), transparent), url(${style.headerImage}) center/cover`
+                                    : style.primaryColor
+                            }}
+                        >
+                            <div>
+                                {style.showLogo && (
+                                    <p className="text-xs font-bold mb-1" style={{ color: style.primaryColor }}>
+                                        ✦ EVENT TICKET
+                                    </p>
+                                )}
+                                <h4 className="text-lg font-bold" style={{ color: style.accentColor }}>
+                                    Tech Summit 2026
+                                </h4>
                             </div>
-                        )}
-                    </div>
+                        </div>
 
-                    <div className="grid grid-cols-2 gap-4 mb-6" style={{ color: style.accentColor }}>
-                        <div>
-                            <p className="text-xs uppercase tracking-wider opacity-60">Date</p>
-                            <p className="font-semibold">Jan 15, 2026</p>
-                        </div>
-                        <div>
-                            <p className="text-xs uppercase tracking-wider opacity-60">Time</p>
-                            <p className="font-semibold">10:00 AM</p>
-                        </div>
-                        <div>
-                            <p className="text-xs uppercase tracking-wider opacity-60">Venue</p>
-                            <p className="font-semibold">Convention Center</p>
-                        </div>
-                        <div>
-                            <p className="text-xs uppercase tracking-wider opacity-60">Ticket #</p>
-                            <p className="font-semibold">#T24001</p>
-                        </div>
-                    </div>
+                        {/* Content Section */}
+                        <div className="p-4">
+                            <div className={`flex gap-4 ${style.showQR ? '' : 'flex-col'}`}>
+                                {/* QR Code */}
+                                {style.showQR && (
+                                    <div className="flex flex-col items-center">
+                                        <div
+                                            className="w-16 h-16 rounded-lg flex items-center justify-center"
+                                            style={{
+                                                backgroundColor: 'rgb(30, 30, 40)',
+                                                border: `1.5px solid ${style.primaryColor}`
+                                            }}
+                                        >
+                                            <QrCode size={40} className="text-white" />
+                                        </div>
+                                        <p className="text-[8px] text-gray-500 mt-1">SCAN TO ENTER</p>
+                                    </div>
+                                )}
 
-                    <div className="flex items-center justify-between pt-4" style={{ borderTop: `1px dashed ${style.primaryColor}40` }}>
-                        <div style={{ color: style.accentColor }}>
-                            <p className="text-xs uppercase tracking-wider opacity-60">Attendee</p>
-                            <p className="font-semibold">John Doe</p>
-                        </div>
-                        {style.showQR && (
-                            <div
-                                className="w-20 h-20 rounded-lg flex items-center justify-center"
-                                style={{ backgroundColor: style.primaryColor }}
-                            >
-                                <QrCode size={48} style={{ color: style.accentColor }} />
+                                {/* Event Details */}
+                                <div className="flex-1 space-y-2 text-xs">
+                                    <div>
+                                        <p className="text-gray-500 text-[10px]">DATE & TIME</p>
+                                        <p className="font-bold" style={{ color: style.accentColor }}>Jan 15, 2026</p>
+                                        <p className="text-gray-400">10:00 AM</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-500 text-[10px]">VENUE</p>
+                                        <p className="font-bold" style={{ color: style.accentColor }}>Convention Center</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-500 text-[10px]">TICKET #</p>
+                                        <p className="font-mono font-bold" style={{ color: style.primaryColor }}>A1B2C3D4</p>
+                                    </div>
+                                </div>
                             </div>
-                        )}
+
+                            {/* Perforated Line */}
+                            <div className="my-4 border-t border-dashed border-gray-600 relative">
+                                <div className="absolute -left-7 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full" style={{ backgroundColor: style.backgroundColor }}></div>
+                                <div className="absolute -right-7 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full" style={{ backgroundColor: style.backgroundColor }}></div>
+                            </div>
+
+                            {/* Attendee Section */}
+                            <div>
+                                <p className="text-[10px] font-bold mb-2" style={{ color: style.primaryColor }}>ATTENDEE INFORMATION</p>
+                                <div className="flex justify-between text-xs">
+                                    <div>
+                                        <p className="text-gray-500 text-[10px]">NAME</p>
+                                        <p className="font-bold" style={{ color: style.accentColor }}>John Doe</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-500 text-[10px]">EMAIL</p>
+                                        <p className="text-gray-400">john@example.com</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="border-t border-gray-700 p-3 text-center">
+                            <p className="text-[8px] text-gray-500">Non-transferable • Valid for single entry</p>
+                            {style.showLogo && (
+                                <p className="font-bold mt-2" style={{ color: style.primaryColor }}>occasio</p>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

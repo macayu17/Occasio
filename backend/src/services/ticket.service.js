@@ -168,6 +168,15 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
   const accentColor = ticketStyle.accentColor ? hexToRgb(ticketStyle.accentColor) : COLORS.white;
   const bgColor = ticketStyle.backgroundColor ? hexToRgb(ticketStyle.backgroundColor) : COLORS.darkBg;
 
+  // Get customization options with defaults
+  const fontFamily = ticketStyle.fontFamily || 'Helvetica';
+  const fontBold = fontFamily === 'Times-Roman' ? 'Times-Bold' :
+    fontFamily === 'Courier' ? 'Courier-Bold' : 'Helvetica-Bold';
+  const borderRadius = parseInt(ticketStyle.borderRadius) || 20;
+  const showBorder = ticketStyle.showBorder !== false; // default true
+  const showQR = ticketStyle.showQR !== false; // default true
+  const showLogo = ticketStyle.showLogo !== false; // default true
+
   // Fetch event poster
   const posterImage = await fetchImage(event.posterUrl || ticketStyle.headerImage);
 
@@ -184,13 +193,15 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
   const cardHeight = 700;
 
   // Card background with gradient simulation (layered rectangles)
-  drawRoundedRect(doc, cardX, cardY, cardWidth, cardHeight, 20, COLORS.cardBg);
+  drawRoundedRect(doc, cardX, cardY, cardWidth, cardHeight, borderRadius, COLORS.cardBg);
 
-  // Gold accent border
-  doc.save();
-  doc.lineWidth(2);
-  drawRoundedRect(doc, cardX + 2, cardY + 2, cardWidth - 4, cardHeight - 4, 18, null, { color: primaryColor, width: 2 });
-  doc.restore();
+  // Accent border (conditional)
+  if (showBorder) {
+    doc.save();
+    doc.lineWidth(2);
+    drawRoundedRect(doc, cardX + 2, cardY + 2, cardWidth - 4, cardHeight - 4, borderRadius - 2, null, { color: primaryColor, width: 2 });
+    doc.restore();
+  }
 
   // ===== HEADER SECTION WITH POSTER =====
   const headerHeight = 180;
@@ -234,16 +245,18 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
   }
   doc.restore();
 
-  // Event badge
+  // Event badge (conditional)
   const badgeY = cardY + headerHeight - 45;
-  doc.font('Helvetica-Bold').fontSize(9)
-    .fillColor(primaryColor)
-    .text('✦ EVENT TICKET', cardX + 25, badgeY);
+  if (showLogo) {
+    doc.font(fontBold).fontSize(9)
+      .fillColor(primaryColor)
+      .text('✦ EVENT TICKET', cardX + 25, badgeY);
+  }
 
   // Event title on header
-  doc.font('Helvetica-Bold').fontSize(26)
-    .fillColor(COLORS.white)
-    .text(event.title, cardX + 25, badgeY + 15, {
+  doc.font(fontBold).fontSize(26)
+    .fillColor(accentColor)
+    .text(event.title, cardX + 25, showLogo ? badgeY + 15 : badgeY, {
       width: cardWidth - 50,
       lineGap: 2
     });
@@ -252,41 +265,43 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
   let yPos = cardY + headerHeight + 25;
   const leftCol = cardX + 25;
   const qrSize = 140;
-  const rightColX = leftCol + qrSize + 30;
-  const rightColWidth = cardWidth - qrSize - 80;
-
-  // ===== QR CODE SECTION (Left) =====
   const qrContainerSize = qrSize + 20;
+  // Adjust layout based on QR visibility
+  const rightColX = showQR ? leftCol + qrSize + 30 : leftCol;
+  const rightColWidth = showQR ? cardWidth - qrSize - 80 : cardWidth - 50;
 
-  // QR background with gold border
-  drawRoundedRect(doc, leftCol, yPos, qrContainerSize, qrContainerSize, 12, [30, 30, 40]);
-  drawRoundedRect(doc, leftCol + 2, yPos + 2, qrContainerSize - 4, qrContainerSize - 4, 10, null, { color: primaryColor, width: 1.5 });
+  // ===== QR CODE SECTION (Left) - Conditional =====
+  if (showQR) {
+    // QR background with accent border
+    drawRoundedRect(doc, leftCol, yPos, qrContainerSize, qrContainerSize, 12, [30, 30, 40]);
+    drawRoundedRect(doc, leftCol + 2, yPos + 2, qrContainerSize - 4, qrContainerSize - 4, 10, null, { color: primaryColor, width: 1.5 });
 
-  // QR Code
-  try {
-    doc.image(qrCodeBuffer, leftCol + 10, yPos + 10, { width: qrSize, height: qrSize });
-  } catch (err) {
-    doc.fillColor(COLORS.gray).text('[QR]', leftCol + 50, yPos + 60);
+    // QR Code
+    try {
+      doc.image(qrCodeBuffer, leftCol + 10, yPos + 10, { width: qrSize, height: qrSize });
+    } catch (err) {
+      doc.fillColor(COLORS.gray).text('[QR]', leftCol + 50, yPos + 60);
+    }
+
+    // "Scan to enter" label below QR
+    doc.font(fontFamily).fontSize(8)
+      .fillColor(COLORS.gray)
+      .text('SCAN TO ENTER', leftCol, yPos + qrContainerSize + 8, {
+        width: qrContainerSize,
+        align: 'center'
+      });
   }
-
-  // "Scan to enter" label below QR
-  doc.font('Helvetica').fontSize(8)
-    .fillColor(COLORS.gray)
-    .text('SCAN TO ENTER', leftCol, yPos + qrContainerSize + 8, {
-      width: qrContainerSize,
-      align: 'center'
-    });
 
   // ===== EVENT DETAILS (Right of QR) =====
   let detailY = yPos;
 
   // Date & Time
-  doc.font('Helvetica').fontSize(9).fillColor(COLORS.gray)
+  doc.font(fontFamily).fontSize(9).fillColor(COLORS.gray)
     .text('DATE & TIME', rightColX, detailY);
   detailY += 14;
 
   const eventDate = new Date(event.startTime);
-  doc.font('Helvetica-Bold').fontSize(14).fillColor(COLORS.white)
+  doc.font(fontBold).fontSize(14).fillColor(accentColor)
     .text(eventDate.toLocaleDateString('en-US', {
       weekday: 'short',
       month: 'short',
@@ -295,7 +310,7 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
     }), rightColX, detailY);
   detailY += 18;
 
-  doc.font('Helvetica').fontSize(12).fillColor(COLORS.lightGray)
+  doc.font(fontFamily).fontSize(12).fillColor(COLORS.lightGray)
     .text(eventDate.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit'
@@ -303,11 +318,11 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
   detailY += 30;
 
   // Location
-  doc.font('Helvetica').fontSize(9).fillColor(COLORS.gray)
+  doc.font(fontFamily).fontSize(9).fillColor(COLORS.gray)
     .text('VENUE', rightColX, detailY);
   detailY += 14;
 
-  doc.font('Helvetica-Bold').fontSize(12).fillColor(COLORS.white)
+  doc.font(fontBold).fontSize(12).fillColor(accentColor)
     .text(event.location || 'TBA', rightColX, detailY, {
       width: rightColWidth,
       lineGap: 2
@@ -315,7 +330,7 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
   detailY += doc.heightOfString(event.location || 'TBA', { width: rightColWidth }) + 20;
 
   // Ticket Number
-  doc.font('Helvetica').fontSize(9).fillColor(COLORS.gray)
+  doc.font(fontFamily).fontSize(9).fillColor(COLORS.gray)
     .text('TICKET #', rightColX, detailY);
   detailY += 14;
 
@@ -323,7 +338,7 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
     .text(ticket.id.substring(0, 8).toUpperCase(), rightColX, detailY);
 
   // ===== PERFORATED LINE / TEAR-OFF SECTION =====
-  const tearY = yPos + qrContainerSize + 50;
+  const tearY = showQR ? yPos + qrContainerSize + 50 : yPos + 120;
 
   // Cutouts
   drawCutouts(doc, tearY, bgColor);
@@ -335,7 +350,7 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
   let attendeeY = tearY + 25;
 
   // Section header
-  doc.font('Helvetica-Bold').fontSize(10).fillColor(primaryColor)
+  doc.font(fontBold).fontSize(10).fillColor(primaryColor)
     .text('ATTENDEE INFORMATION', leftCol, attendeeY);
   attendeeY += 25;
 
@@ -345,15 +360,15 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
   const colWidth = (cardWidth - 50) / 2 - 10;
 
   // Name
-  doc.font('Helvetica').fontSize(9).fillColor(COLORS.gray)
+  doc.font(fontFamily).fontSize(9).fillColor(COLORS.gray)
     .text('NAME', col1X, attendeeY);
-  doc.font('Helvetica-Bold').fontSize(13).fillColor(COLORS.white)
+  doc.font(fontBold).fontSize(13).fillColor(accentColor)
     .text(attendee.name || 'Guest', col1X, attendeeY + 14, { width: colWidth });
 
   // Email
-  doc.font('Helvetica').fontSize(9).fillColor(COLORS.gray)
+  doc.font(fontFamily).fontSize(9).fillColor(COLORS.gray)
     .text('EMAIL', col2X, attendeeY);
-  doc.font('Helvetica').fontSize(11).fillColor(COLORS.lightGray)
+  doc.font(fontFamily).fontSize(11).fillColor(COLORS.lightGray)
     .text(attendee.email || order.registration.userEmail || '-', col2X, attendeeY + 14, {
       width: colWidth,
       ellipsis: true
@@ -371,7 +386,7 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
     .stroke([50, 50, 60]);
 
   // Footer text
-  doc.font('Helvetica').fontSize(8).fillColor(COLORS.gray);
+  doc.font(fontFamily).fontSize(8).fillColor(COLORS.gray);
   doc.text('This ticket is non-transferable • Valid for single entry only',
     cardX + 25, footerY + 12, { width: cardWidth - 50, align: 'center' });
 
@@ -380,11 +395,13 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
   doc.text(issuedText, cardX + 25, footerY + 25, { width: cardWidth - 50, align: 'center' });
 
   // ===== BOTTOM BRANDING =====
-  const brandY = TICKET_HEIGHT - 50;
-  doc.font('Helvetica-Bold').fontSize(18).fillColor(primaryColor)
-    .text('occasio', 0, brandY, { width: TICKET_WIDTH, align: 'center' });
-  doc.font('Helvetica').fontSize(8).fillColor(COLORS.gray)
-    .text('Premium Event Experience', 0, brandY + 20, { width: TICKET_WIDTH, align: 'center' });
+  if (showLogo) {
+    const brandY = TICKET_HEIGHT - 50;
+    doc.font(fontBold).fontSize(18).fillColor(primaryColor)
+      .text('occasio', 0, brandY, { width: TICKET_WIDTH, align: 'center' });
+    doc.font(fontFamily).fontSize(8).fillColor(COLORS.gray)
+      .text('Premium Event Experience', 0, brandY + 20, { width: TICKET_WIDTH, align: 'center' });
+  }
 }
 
 // ============== MAIN EXPORT FUNCTIONS ==============
