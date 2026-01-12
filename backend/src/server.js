@@ -18,6 +18,8 @@ import reviewRoutes from './routes/review.routes.js';
 import pollRoutes from './routes/poll.routes.js';
 import pushRoutes from './routes/push.routes.js';
 import teamRoutes from './routes/team.routes.js';
+import featureRoutes from './routes/feature.routes.js';
+import walletRoutes from './routes/wallet.routes.js';
 
 dotenv.config();
 
@@ -87,6 +89,8 @@ app.use('/api', reviewRoutes);
 app.use('/api', pollRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/team', teamRoutes);
+app.use('/api', featureRoutes);
+app.use('/api', walletRoutes);
 
 // Health check with version for deployment verification
 app.get('/health', (req, res) => {

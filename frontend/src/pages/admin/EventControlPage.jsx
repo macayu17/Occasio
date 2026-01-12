@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-    ArrowLeft, Users, Users2, QrCode, BarChart3, Palette,
+    ArrowLeft, Users, UserCog, QrCode, BarChart3, Palette,
     Search, Check, X, RotateCcw, LogIn, LogOut,
-    Clock, UserCheck, UserX, RefreshCw, MessageSquare, Trash2, PlusCircle
+    Clock, UserCheck, UserX, RefreshCw, MessageSquare, Trash2, PlusCircle,
+    Mic, Ticket, Bell
 } from 'lucide-react';
 import api from '../../utils/api';
 import { format } from 'date-fns';
@@ -16,7 +17,10 @@ const TABS = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'checkin', label: 'Check-in', icon: QrCode },
     { id: 'attendees', label: 'Attendees', icon: Users },
-    { id: 'team', label: 'Team', icon: Users2 },
+    { id: 'team', label: 'Team', icon: UserCog },
+    { id: 'tiers', label: 'Ticket Tiers', icon: Ticket },
+    { id: 'speakers', label: 'Speakers', icon: Mic },
+    { id: 'reminders', label: 'Reminders', icon: Bell },
     { id: 'polls', label: 'Polls', icon: MessageSquare },
     { id: 'style', label: 'Ticket Style', icon: Palette }
 ];
@@ -190,6 +194,18 @@ export default function EventControlPage() {
 
             {activeTab === 'team' && (
                 <TeamManagement eventId={eventId} />
+            )}
+
+            {activeTab === 'tiers' && (
+                <TiersTab eventId={eventId} />
+            )}
+
+            {activeTab === 'speakers' && (
+                <SpeakersTab eventId={eventId} />
+            )}
+
+            {activeTab === 'reminders' && (
+                <RemindersTab eventId={eventId} />
             )}
 
             {activeTab === 'style' && (
