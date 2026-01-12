@@ -1009,3 +1009,353 @@ function PollsTab({ eventId }) {
         </div>
     );
 }
+
+// ============================================
+// TIERS TAB
+// ============================================
+function TiersTab({ eventId }) {
+    const [tiers, setTiers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [showForm, setShowForm] = useState(false);
+    const [editingTier, setEditingTier] = useState(null);
+    const [form, setForm] = useState({ name: '', description: '', priceCents: 0, capacity: '' });
+
+    useEffect(() => {
+        fetchTiers();
+    }, [eventId]);
+
+    const fetchTiers = async () => {
+        try {
+            const res = await api.get(`/events/${eventId}/tiers`);
+            setTiers(res.data);
+        } catch (error) {
+            console.error('Error fetching tiers:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            if (editingTier) {
+                await api.put(`/admin/tiers/${editingTier.id}`, form);
+                toast.success('Tier updated');
+            } else {
+                await api.post(`/admin/events/${eventId}/tiers`, form);
+                toast.success('Tier created');
+            }
+            setShowForm(false);
+            setEditingTier(null);
+            setForm({ name: '', description: '', priceCents: 0, capacity: '' });
+            fetchTiers();
+        } catch (error) {
+            toast.error(error.response?.data?.error || 'Failed to save tier');
+        }
+    };
+
+    const handleDelete = async (tierId) => {
+        if (!confirm('Delete this tier?')) return;
+        try {
+            await api.delete(`/admin/tiers/${tierId}`);
+            toast.success('Tier deleted');
+            fetchTiers();
+        } catch (error) {
+            toast.error('Failed to delete');
+        }
+    };
+
+    return (
+        <div className="glass-card p-6">
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-white">Ticket Tiers</h2>
+                <button onClick={() => { setShowForm(true); setEditingTier(null); setForm({ name: '', description: '', priceCents: 0, capacity: '' }); }} className="btn btn-primary">
+                    <PlusCircle size={18} /> Add Tier
+                </button>
+            </div>
+
+            {showForm && (
+                <form onSubmit={handleSubmit} className="mb-6 p-4 bg-white/5 rounded-lg space-y-4">
+                    <input type="text" placeholder="Tier Name (e.g., VIP, Standard)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input w-full" required />
+                    <input type="text" placeholder="Description (optional)" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input w-full" />
+                    <div className="grid grid-cols-2 gap-4">
+                        <input type="number" placeholder="Price (in paise)" value={form.priceCents} onChange={(e) => setForm({ ...form, priceCents: parseInt(e.target.value) || 0 })} className="input" required />
+                        <input type="number" placeholder="Capacity (leave empty for unlimited)" value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} className="input" />
+                    </div>
+                    <div className="flex gap-2">
+                        <button type="submit" className="btn btn-primary">{editingTier ? 'Update' : 'Create'}</button>
+                        <button type="button" onClick={() => { setShowForm(false); setEditingTier(null); }} className="btn btn-ghost">Cancel</button>
+                    </div>
+                </form>
+            )}
+
+            {loading ? (
+                <div className="text-gray-400">Loading...</div>
+            ) : tiers.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                    <Ticket className="mx-auto mb-4 opacity-50" size={48} />
+                    <p>No tiers created yet</p>
+                    <p className="text-sm">Add different ticket types like VIP, Standard, Early Bird</p>
+                </div>
+            ) : (
+                <div className="space-y-3">
+                    {tiers.map(tier => (
+                        <div key={tier.id} className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
+                            <div>
+                                <h3 className="font-semibold text-white">{tier.name}</h3>
+                                <p className="text-sm text-gray-400">{tier.description || 'No description'}</p>
+                                <p className="text-sm text-green-400">₹{(tier.priceCents / 100).toFixed(2)} • {tier.capacity ? `${tier.soldCount}/${tier.capacity} sold` : 'Unlimited'}</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={() => { setEditingTier(tier); setForm({ name: tier.name, description: tier.description || '', priceCents: tier.priceCents, capacity: tier.capacity || '' }); setShowForm(true); }} className="btn btn-ghost btn-sm">Edit</button>
+                                <button onClick={() => handleDelete(tier.id)} className="btn btn-ghost btn-sm text-red-400"><Trash2 size={16} /></button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ============================================
+// SPEAKERS TAB
+// ============================================
+function SpeakersTab({ eventId }) {
+    const [speakers, setSpeakers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [showForm, setShowForm] = useState(false);
+    const [editingSpeaker, setEditingSpeaker] = useState(null);
+    const [form, setForm] = useState({ name: '', title: '', bio: '', photoUrl: '', linkedIn: '', twitter: '' });
+
+    useEffect(() => {
+        fetchSpeakers();
+    }, [eventId]);
+
+    const fetchSpeakers = async () => {
+        try {
+            const res = await api.get(`/events/${eventId}/speakers`);
+            setSpeakers(res.data);
+        } catch (error) {
+            console.error('Error fetching speakers:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            if (editingSpeaker) {
+                await api.put(`/admin/speakers/${editingSpeaker.id}`, form);
+                toast.success('Speaker updated');
+            } else {
+                await api.post(`/admin/events/${eventId}/speakers`, form);
+                toast.success('Speaker added');
+            }
+            setShowForm(false);
+            setEditingSpeaker(null);
+            setForm({ name: '', title: '', bio: '', photoUrl: '', linkedIn: '', twitter: '' });
+            fetchSpeakers();
+        } catch (error) {
+            toast.error(error.response?.data?.error || 'Failed to save speaker');
+        }
+    };
+
+    const handleDelete = async (speakerId) => {
+        if (!confirm('Remove this speaker?')) return;
+        try {
+            await api.delete(`/admin/speakers/${speakerId}`);
+            toast.success('Speaker removed');
+            fetchSpeakers();
+        } catch (error) {
+            toast.error('Failed to remove');
+        }
+    };
+
+    return (
+        <div className="glass-card p-6">
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-white">Speakers</h2>
+                <button onClick={() => { setShowForm(true); setEditingSpeaker(null); setForm({ name: '', title: '', bio: '', photoUrl: '', linkedIn: '', twitter: '' }); }} className="btn btn-primary">
+                    <PlusCircle size={18} /> Add Speaker
+                </button>
+            </div>
+
+            {showForm && (
+                <form onSubmit={handleSubmit} className="mb-6 p-4 bg-white/5 rounded-lg space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <input type="text" placeholder="Speaker Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" required />
+                        <input type="text" placeholder="Title (e.g., CEO at Company)" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input" />
+                    </div>
+                    <textarea placeholder="Bio" value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} className="input w-full h-24" />
+                    <input type="url" placeholder="Photo URL" value={form.photoUrl} onChange={(e) => setForm({ ...form, photoUrl: e.target.value })} className="input w-full" />
+                    <div className="grid grid-cols-2 gap-4">
+                        <input type="url" placeholder="LinkedIn URL" value={form.linkedIn} onChange={(e) => setForm({ ...form, linkedIn: e.target.value })} className="input" />
+                        <input type="text" placeholder="Twitter handle" value={form.twitter} onChange={(e) => setForm({ ...form, twitter: e.target.value })} className="input" />
+                    </div>
+                    <div className="flex gap-2">
+                        <button type="submit" className="btn btn-primary">{editingSpeaker ? 'Update' : 'Add'}</button>
+                        <button type="button" onClick={() => { setShowForm(false); setEditingSpeaker(null); }} className="btn btn-ghost">Cancel</button>
+                    </div>
+                </form>
+            )}
+
+            {loading ? (
+                <div className="text-gray-400">Loading...</div>
+            ) : speakers.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                    <Mic className="mx-auto mb-4 opacity-50" size={48} />
+                    <p>No speakers added yet</p>
+                    <p className="text-sm">Add speakers to showcase on the event page</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {speakers.map(speaker => (
+                        <div key={speaker.id} className="flex items-start gap-4 p-4 bg-white/5 rounded-lg">
+                            {speaker.photoUrl ? (
+                                <img src={speaker.photoUrl} alt={speaker.name} className="w-16 h-16 rounded-full object-cover" />
+                            ) : (
+                                <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center text-xl font-bold">{speaker.name.charAt(0)}</div>
+                            )}
+                            <div className="flex-1">
+                                <h3 className="font-semibold text-white">{speaker.name}</h3>
+                                {speaker.title && <p className="text-sm text-gray-400">{speaker.title}</p>}
+                                {speaker.bio && <p className="text-sm text-gray-500 mt-1 line-clamp-2">{speaker.bio}</p>}
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={() => { setEditingSpeaker(speaker); setForm({ name: speaker.name, title: speaker.title || '', bio: speaker.bio || '', photoUrl: speaker.photoUrl || '', linkedIn: speaker.linkedIn || '', twitter: speaker.twitter || '' }); setShowForm(true); }} className="btn btn-ghost btn-sm">Edit</button>
+                                <button onClick={() => handleDelete(speaker.id)} className="btn btn-ghost btn-sm text-red-400"><Trash2 size={16} /></button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ============================================
+// REMINDERS TAB
+// ============================================
+function RemindersTab({ eventId }) {
+    const [reminders, setReminders] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [showForm, setShowForm] = useState(false);
+    const [form, setForm] = useState({ hoursBeforeEvent: 24, subject: '', message: '' });
+
+    useEffect(() => {
+        fetchReminders();
+    }, [eventId]);
+
+    const fetchReminders = async () => {
+        try {
+            const res = await api.get(`/admin/events/${eventId}/reminders`);
+            setReminders(res.data);
+        } catch (error) {
+            console.error('Error fetching reminders:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            await api.post(`/admin/events/${eventId}/reminders`, form);
+            toast.success('Reminder created');
+            setShowForm(false);
+            setForm({ hoursBeforeEvent: 24, subject: '', message: '' });
+            fetchReminders();
+        } catch (error) {
+            toast.error(error.response?.data?.error || 'Failed to create reminder');
+        }
+    };
+
+    const handleDelete = async (reminderId) => {
+        if (!confirm('Delete this reminder?')) return;
+        try {
+            await api.delete(`/admin/reminders/${reminderId}`);
+            toast.success('Reminder deleted');
+            fetchReminders();
+        } catch (error) {
+            toast.error('Failed to delete');
+        }
+    };
+
+    const toggleActive = async (reminder) => {
+        try {
+            await api.put(`/admin/reminders/${reminder.id}`, { isActive: !reminder.isActive });
+            fetchReminders();
+        } catch (error) {
+            toast.error('Failed to update');
+        }
+    };
+
+    return (
+        <div className="glass-card p-6">
+            <div className="flex justify-between items-center mb-6">
+                <div>
+                    <h2 className="text-xl font-bold text-white">Event Reminders</h2>
+                    <p className="text-sm text-gray-400">Automated emails sent to attendees before the event</p>
+                </div>
+                <button onClick={() => setShowForm(true)} className="btn btn-primary">
+                    <PlusCircle size={18} /> Add Reminder
+                </button>
+            </div>
+
+            <div className="mb-4 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm text-blue-300">
+                <strong>Tip:</strong> Use placeholders: {'{name}'}, {'{event}'}, {'{date}'}, {'{time}'}, {'{location}'}
+            </div>
+
+            {showForm && (
+                <form onSubmit={handleSubmit} className="mb-6 p-4 bg-white/5 rounded-lg space-y-4">
+                    <select value={form.hoursBeforeEvent} onChange={(e) => setForm({ ...form, hoursBeforeEvent: parseInt(e.target.value) })} className="input w-full">
+                        <option value={168}>1 week before</option>
+                        <option value={72}>3 days before</option>
+                        <option value={24}>1 day before</option>
+                        <option value={12}>12 hours before</option>
+                        <option value={2}>2 hours before</option>
+                        <option value={1}>1 hour before</option>
+                    </select>
+                    <input type="text" placeholder="Email Subject (e.g., Don't forget: {event} is tomorrow!)" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} className="input w-full" required />
+                    <textarea placeholder="Email Message" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} className="input w-full h-32" required />
+                    <div className="flex gap-2">
+                        <button type="submit" className="btn btn-primary">Create Reminder</button>
+                        <button type="button" onClick={() => setShowForm(false)} className="btn btn-ghost">Cancel</button>
+                    </div>
+                </form>
+            )}
+
+            {loading ? (
+                <div className="text-gray-400">Loading...</div>
+            ) : reminders.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                    <Bell className="mx-auto mb-4 opacity-50" size={48} />
+                    <p>No reminders configured</p>
+                    <p className="text-sm">Set up automatic reminder emails for attendees</p>
+                </div>
+            ) : (
+                <div className="space-y-3">
+                    {reminders.map(reminder => (
+                        <div key={reminder.id} className={`flex items-center justify-between p-4 rounded-lg ${reminder.isActive ? 'bg-white/5' : 'bg-white/2 opacity-50'}`}>
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h3 className="font-semibold text-white">{reminder.hoursBeforeEvent}h before</h3>
+                                    {reminder.sentAt && <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded">Sent</span>}
+                                </div>
+                                <p className="text-sm text-gray-400">{reminder.subject}</p>
+                            </div>
+                            <div className="flex gap-2 items-center">
+                                <button onClick={() => toggleActive(reminder)} className={`btn btn-ghost btn-sm ${reminder.isActive ? 'text-green-400' : 'text-gray-500'}`}>
+                                    {reminder.isActive ? 'Active' : 'Paused'}
+                                </button>
+                                <button onClick={() => handleDelete(reminder.id)} className="btn btn-ghost btn-sm text-red-400"><Trash2 size={16} /></button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}

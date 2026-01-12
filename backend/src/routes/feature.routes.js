@@ -1,6 +1,6 @@
 import express from 'express';
 import prisma from '../config/db.js';
-import { authenticateToken } from '../middleware/auth.middleware.js';
+import { authenticate } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
@@ -56,7 +56,7 @@ router.get('/events/:eventId/speakers', async (req, res) => {
 // --- TICKET TIERS ADMIN ---
 
 // Create tier
-router.post('/admin/events/:eventId/tiers', authenticateToken, async (req, res) => {
+router.post('/admin/events/:eventId/tiers', authenticate, async (req, res) => {
     try {
         const { eventId } = req.params;
         const { name, description, priceCents, capacity, sortOrder } = req.body;
@@ -87,7 +87,7 @@ router.post('/admin/events/:eventId/tiers', authenticateToken, async (req, res) 
 });
 
 // Update tier
-router.put('/admin/tiers/:tierId', authenticateToken, async (req, res) => {
+router.put('/admin/tiers/:tierId', authenticate, async (req, res) => {
     try {
         const { tierId } = req.params;
         const { name, description, priceCents, capacity, sortOrder, isActive } = req.body;
@@ -122,7 +122,7 @@ router.put('/admin/tiers/:tierId', authenticateToken, async (req, res) => {
 });
 
 // Delete tier
-router.delete('/admin/tiers/:tierId', authenticateToken, async (req, res) => {
+router.delete('/admin/tiers/:tierId', authenticate, async (req, res) => {
     try {
         const { tierId } = req.params;
 
@@ -147,7 +147,7 @@ router.delete('/admin/tiers/:tierId', authenticateToken, async (req, res) => {
 // --- SPEAKERS ADMIN ---
 
 // Create speaker
-router.post('/admin/events/:eventId/speakers', authenticateToken, async (req, res) => {
+router.post('/admin/events/:eventId/speakers', authenticate, async (req, res) => {
     try {
         const { eventId } = req.params;
         const { name, title, bio, photoUrl, linkedIn, twitter, sortOrder } = req.body;
@@ -179,7 +179,7 @@ router.post('/admin/events/:eventId/speakers', authenticateToken, async (req, re
 });
 
 // Update speaker
-router.put('/admin/speakers/:speakerId', authenticateToken, async (req, res) => {
+router.put('/admin/speakers/:speakerId', authenticate, async (req, res) => {
     try {
         const { speakerId } = req.params;
         const { name, title, bio, photoUrl, linkedIn, twitter, sortOrder } = req.body;
@@ -207,7 +207,7 @@ router.put('/admin/speakers/:speakerId', authenticateToken, async (req, res) => 
 });
 
 // Delete speaker
-router.delete('/admin/speakers/:speakerId', authenticateToken, async (req, res) => {
+router.delete('/admin/speakers/:speakerId', authenticate, async (req, res) => {
     try {
         const { speakerId } = req.params;
 
@@ -232,7 +232,7 @@ router.delete('/admin/speakers/:speakerId', authenticateToken, async (req, res) 
 // --- REMINDERS ADMIN ---
 
 // Get reminders for an event
-router.get('/admin/events/:eventId/reminders', authenticateToken, async (req, res) => {
+router.get('/admin/events/:eventId/reminders', authenticate, async (req, res) => {
     try {
         const { eventId } = req.params;
 
@@ -255,7 +255,7 @@ router.get('/admin/events/:eventId/reminders', authenticateToken, async (req, re
 });
 
 // Create reminder
-router.post('/admin/events/:eventId/reminders', authenticateToken, async (req, res) => {
+router.post('/admin/events/:eventId/reminders', authenticate, async (req, res) => {
     try {
         const { eventId } = req.params;
         const { hoursBeforeEvent, subject, message } = req.body;
@@ -283,7 +283,7 @@ router.post('/admin/events/:eventId/reminders', authenticateToken, async (req, r
 });
 
 // Update reminder
-router.put('/admin/reminders/:reminderId', authenticateToken, async (req, res) => {
+router.put('/admin/reminders/:reminderId', authenticate, async (req, res) => {
     try {
         const { reminderId } = req.params;
         const { hoursBeforeEvent, subject, message, isActive } = req.body;
@@ -316,7 +316,7 @@ router.put('/admin/reminders/:reminderId', authenticateToken, async (req, res) =
 });
 
 // Delete reminder
-router.delete('/admin/reminders/:reminderId', authenticateToken, async (req, res) => {
+router.delete('/admin/reminders/:reminderId', authenticate, async (req, res) => {
     try {
         const { reminderId } = req.params;
 
