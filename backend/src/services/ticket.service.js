@@ -190,7 +190,7 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
   const cardX = MARGIN;
   const cardY = MARGIN;
   const cardWidth = CONTENT_WIDTH;
-  const cardHeight = 520;
+  const cardHeight = 580;
 
   // Card background with gradient simulation (layered rectangles)
   drawRoundedRect(doc, cardX, cardY, cardWidth, cardHeight, borderRadius, COLORS.cardBg);
@@ -357,27 +357,25 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
   // Two-column layout for attendee info
   const col1X = leftCol;
   const col2X = leftCol + (cardWidth - 50) / 2;
-  const colWidth = (cardWidth - 50) / 2 - 10;
+  const colWidth = (cardWidth - 50) / 2 - 20;
 
   // Name
   doc.font(fontFamily).fontSize(9).fillColor(COLORS.gray)
     .text('NAME', col1X, attendeeY);
-  doc.font(fontBold).fontSize(13).fillColor(accentColor)
+  doc.font(fontBold).fontSize(12).fillColor(accentColor)
     .text(attendee.name || 'Guest', col1X, attendeeY + 14, { width: colWidth });
 
   // Email
   doc.font(fontFamily).fontSize(9).fillColor(COLORS.gray)
     .text('EMAIL', col2X, attendeeY);
-  doc.font(fontFamily).fontSize(11).fillColor(COLORS.lightGray)
+  doc.font(fontFamily).fontSize(10).fillColor(COLORS.lightGray)
     .text(attendee.email || order.registration.userEmail || '-', col2X, attendeeY + 14, {
       width: colWidth,
       ellipsis: true
     });
 
-  attendeeY += 55;
-
   // ===== FOOTER =====
-  const footerY = cardY + cardHeight - 50;
+  const footerY = cardY + cardHeight - 60;
 
   // Decorative line
   doc.moveTo(cardX + 25, footerY)
@@ -388,11 +386,11 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
   // Footer text
   doc.font(fontFamily).fontSize(8).fillColor(COLORS.gray);
   doc.text('This ticket is non-transferable • Valid for single entry only',
-    cardX + 25, footerY + 12, { width: cardWidth - 50, align: 'center' });
+    cardX + 25, footerY + 15, { width: cardWidth - 50, align: 'center' });
 
   // Issued date
   const issuedText = `Issued: ${new Date(ticket.issuedAt).toLocaleDateString()}`;
-  doc.text(issuedText, cardX + 25, footerY + 25, { width: cardWidth - 50, align: 'center' });
+  doc.text(issuedText, cardX + 25, footerY + 30, { width: cardWidth - 50, align: 'center' });
 
   // ===== BOTTOM BRANDING =====
   if (showLogo) {
