@@ -87,7 +87,7 @@ export default function RegistrationsPage() {
   if (loading) {
     return (
       <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-[#E23744] border-r-2 border-[#E23744]/30"></div>
       </div>
     );
   }
@@ -101,8 +101,8 @@ export default function RegistrationsPage() {
     <div>
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold">{event?.title}</h1>
-          <p className="text-gray-600 mt-2">Event Registrations</p>
+          <h1 className="text-3xl font-bold text-white">{event?.title}</h1>
+          <p className="text-gray-400 mt-2">Event Registrations</p>
         </div>
         <button onClick={exportToCSV} className="btn btn-primary">
           <Download size={20} className="mr-2" />
@@ -112,22 +112,22 @@ export default function RegistrationsPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="card">
-          <p className="text-sm text-gray-600 mb-1">Total Registrations</p>
-          <p className="text-3xl font-bold">{registrations.length}</p>
+        <div className="glass-card rounded-2xl p-6 bg-[#18181b]/60 border border-white/5">
+          <p className="text-sm text-gray-400 mb-1">Total Registrations</p>
+          <p className="text-3xl font-bold text-white">{registrations.length}</p>
         </div>
-        <div className="card">
-          <p className="text-sm text-gray-600 mb-1">Paid Registrations</p>
-          <p className="text-3xl font-bold text-green-600">{paidRegistrations}</p>
+        <div className="glass-card rounded-2xl p-6 bg-[#18181b]/60 border border-white/5">
+          <p className="text-sm text-gray-400 mb-1">Paid Registrations</p>
+          <p className="text-3xl font-bold text-green-400">{paidRegistrations}</p>
         </div>
-        <div className="card">
-          <p className="text-sm text-gray-600 mb-1">Total Revenue</p>
-          <p className="text-3xl font-bold text-primary-600">₹{totalRevenue.toFixed(2)}</p>
+        <div className="glass-card rounded-2xl p-6 bg-[#18181b]/60 border border-white/5">
+          <p className="text-sm text-gray-400 mb-1">Total Revenue</p>
+          <p className="text-3xl font-bold text-[#E23744]">₹{totalRevenue.toFixed(2)}</p>
         </div>
       </div>
 
       {/* Registrations Table */}
-      <div className="card">
+      <div className="glass-card rounded-2xl p-6 bg-[#18181b]/60 border border-white/5 overflow-hidden">
         {registrations.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500">No registrations yet</p>
@@ -136,29 +136,29 @@ export default function RegistrationsPage() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4 font-semibold">Attendee</th>
-                  <th className="text-left py-3 px-4 font-semibold">Email</th>
-                  <th className="text-left py-3 px-4 font-semibold">Status</th>
-                  <th className="text-left py-3 px-4 font-semibold">Date</th>
-                  <th className="text-left py-3 px-4 font-semibold">Ticket</th>
-                  <th className="text-left py-3 px-4 font-semibold">Check-in</th>
-                  <th className="text-left py-3 px-4 font-semibold">Actions</th>
+                <tr className="border-b border-white/10">
+                  <th className="text-left py-3 px-4 font-semibold text-gray-400">Attendee</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-400">Email</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-400">Status</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-400">Date</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-400">Ticket</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-400">Check-in</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-400">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {registrations.map((registration) => (
-                  <tr key={registration.id} className="border-b hover:bg-gray-50">
-                    <td className="py-3 px-4">
+                  <tr key={registration.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                    <td className="py-3 px-4 text-white">
                       {registration.formResponse.name || 'N/A'}
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-4 text-gray-400">
                       {registration.userEmail}
                     </td>
                     <td className="py-3 px-4">
                       <StatusBadge status={registration.status} />
                     </td>
-                    <td className="py-3 px-4 text-sm text-gray-600">
+                    <td className="py-3 px-4 text-sm text-gray-400">
                       {format(new Date(registration.createdAt), 'PPP')}
                     </td>
                     <td className="py-3 px-4">
@@ -191,13 +191,13 @@ export default function RegistrationsPage() {
                           Not Checked In
                         </span>
                       ) : (
-                        <span className="text-gray-400 text-sm">-</span>
+                        <span className="text-gray-500 text-sm">-</span>
                       )}
                     </td>
                     <td className="py-3 px-4">
                       <button
                         onClick={() => deleteRegistration(registration.id, registration.formResponse.name)}
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded transition-colors"
+                        className="text-red-500 hover:text-red-400 hover:bg-red-500/10 p-2 rounded-lg transition-colors"
                         title="Delete registration"
                       >
                         <Trash2 size={18} />

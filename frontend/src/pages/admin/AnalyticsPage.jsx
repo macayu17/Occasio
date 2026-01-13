@@ -29,16 +29,16 @@ export default function AnalyticsPage() {
   if (loading) {
     return (
       <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-[#E23744] border-r-2 border-[#E23744]/30"></div>
       </div>
     );
   }
 
-  if (!analytics) return <div>No analytics data available</div>;
+  if (!analytics) return <div className="text-gray-400">No analytics data available</div>;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">Event Analytics</h1>
+      <h1 className="text-3xl font-bold mb-8 text-white">Event Analytics</h1>
 
       {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -71,26 +71,26 @@ export default function AnalyticsPage() {
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Registration Timeline */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Registration Timeline</h2>
+        <div className="glass-card rounded-2xl p-6 bg-[#18181b]/60 border border-white/5">
+          <h2 className="text-xl font-semibold mb-4 text-white">Registration Timeline</h2>
           <div className="space-y-3">
             {analytics?.dailyRegistrations && analytics.dailyRegistrations.length > 0 ? (
               analytics.dailyRegistrations.map((day, index) => (
                 <div key={index} className="flex items-center">
-                  <span className="text-sm text-gray-600 w-24">
+                  <span className="text-sm text-gray-400 w-24">
                     {format(new Date(day.date), 'MMM dd')}
                   </span>
                   <div className="flex-1 mx-4">
-                    <div className="h-6 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="h-6 bg-white/5 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-primary-500"
+                        className="h-full bg-gradient-to-r from-[#E23744] to-[#E23744]/70 rounded-full"
                         style={{
                           width: `${(day.count / Math.max(...analytics.dailyRegistrations.map(d => d.count), 1)) * 100}%`
                         }}
                       ></div>
                     </div>
                   </div>
-                  <span className="text-sm font-medium w-12 text-right">{day.count}</span>
+                  <span className="text-sm font-medium w-12 text-right text-white">{day.count}</span>
                 </div>
               ))
             ) : (
@@ -100,33 +100,33 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Payment Status */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Payment Status</h2>
+        <div className="glass-card rounded-2xl p-6 bg-[#18181b]/60 border border-white/5">
+          <h2 className="text-xl font-semibold mb-4 text-white">Payment Status</h2>
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
+            <div className="flex items-center justify-between p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
               <div className="flex items-center space-x-3">
                 <CheckCircle className="text-green-500" size={24} />
-                <span className="font-medium">Paid</span>
+                <span className="font-medium text-green-400">Paid</span>
               </div>
-              <span className="text-2xl font-bold text-green-600">
+              <span className="text-2xl font-bold text-green-400">
                 {analytics?.paidRegistrations || 0}
               </span>
             </div>
-            <div className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg">
+            <div className="flex items-center justify-between p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
               <div className="flex items-center space-x-3">
                 <Calendar className="text-yellow-500" size={24} />
-                <span className="font-medium">Pending</span>
+                <span className="font-medium text-yellow-400">Pending</span>
               </div>
-              <span className="text-2xl font-bold text-yellow-600">
+              <span className="text-2xl font-bold text-yellow-400">
                 {analytics?.pendingRegistrations || 0}
               </span>
             </div>
-            <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg">
+            <div className="flex items-center justify-between p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
               <div className="flex items-center space-x-3">
                 <XCircle className="text-red-500" size={24} />
-                <span className="font-medium">Failed</span>
+                <span className="font-medium text-red-400">Failed</span>
               </div>
-              <span className="text-2xl font-bold text-red-600">
+              <span className="text-2xl font-bold text-red-400">
                 {analytics?.failedRegistrations || 0}
               </span>
             </div>
@@ -135,46 +135,46 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Check-in Stats */}
-      <div className="bg-white rounded-lg shadow p-6 mb-8">
-        <h2 className="text-xl font-semibold mb-4">Check-in Statistics</h2>
+      <div className="glass-card rounded-2xl p-6 bg-[#18181b]/60 border border-white/5 mb-8">
+        <h2 className="text-xl font-semibold mb-4 text-white">Check-in Statistics</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="text-center p-4 bg-blue-50 rounded-lg">
-            <div className="text-3xl font-bold text-blue-600 mb-2">
+          <div className="text-center p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+            <div className="text-3xl font-bold text-blue-400 mb-2">
               {analytics?.checkedInCount || 0}
             </div>
-            <div className="text-sm text-gray-600">Checked In</div>
+            <div className="text-sm text-gray-400">Checked In</div>
           </div>
-          <div className="text-center p-4 bg-gray-50 rounded-lg">
-            <div className="text-3xl font-bold text-gray-600 mb-2">
+          <div className="text-center p-4 bg-white/5 border border-white/10 rounded-xl">
+            <div className="text-3xl font-bold text-gray-300 mb-2">
               {analytics?.notCheckedInCount || 0}
             </div>
-            <div className="text-sm text-gray-600">Not Checked In</div>
+            <div className="text-sm text-gray-400">Not Checked In</div>
           </div>
-          <div className="text-center p-4 bg-green-50 rounded-lg">
-            <div className="text-3xl font-bold text-green-600 mb-2">
+          <div className="text-center p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
+            <div className="text-3xl font-bold text-green-400 mb-2">
               {(analytics?.checkInRate || 0).toFixed(1)}%
             </div>
-            <div className="text-sm text-gray-600">Check-in Rate</div>
+            <div className="text-sm text-gray-400">Check-in Rate</div>
           </div>
         </div>
       </div>
 
-      {/* Recent Attendees (if needed) */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold mb-4">Recent Registrations</h2>
+      {/* Recent Attendees */}
+      <div className="glass-card rounded-2xl p-6 bg-[#18181b]/60 border border-white/5">
+        <h2 className="text-xl font-semibold mb-4 text-white">Recent Registrations</h2>
         <div className="space-y-3">
           {analytics?.recentRegistrations && analytics.recentRegistrations.length > 0 ? (
             analytics.recentRegistrations.map((reg, index) => (
-              <div key={index} className="flex items-center justify-between p-3 border-b">
+              <div key={index} className="flex items-center justify-between p-3 border-b border-white/5 hover:bg-white/5 rounded-lg transition-colors">
                 <div>
-                  <div className="font-medium">{reg.attendeeName}</div>
+                  <div className="font-medium text-white">{reg.attendeeName}</div>
                   <div className="text-sm text-gray-500">{reg.email}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-medium">
+                  <div className="text-sm font-medium text-gray-400">
                     {format(new Date(reg.createdAt), 'MMM dd, HH:mm')}
                   </div>
-                  <div className={`text-xs ${reg.status === 'PAID' ? 'text-green-600' : 'text-yellow-600'
+                  <div className={`text-xs ${reg.status === 'PAID' ? 'text-green-400' : 'text-yellow-400'
                     }`}>
                     {reg.status}
                   </div>
@@ -192,14 +192,14 @@ export default function AnalyticsPage() {
 
 function StatCard({ icon, title, value, trend }) {
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div className="glass-card rounded-2xl p-6 bg-[#18181b]/60 border border-white/5">
       <div className="flex items-center justify-between mb-4">
-        <div className="p-2 bg-gray-100 rounded-lg">
+        <div className="p-2 bg-white/5 rounded-xl">
           {icon}
         </div>
       </div>
-      <div className="text-2xl font-bold mb-1">{value}</div>
-      <div className="text-sm text-gray-600 mb-2">{title}</div>
+      <div className="text-2xl font-bold mb-1 text-white">{value}</div>
+      <div className="text-sm text-gray-400 mb-2">{title}</div>
       <div className="text-xs text-gray-500">{trend}</div>
     </div>
   );
