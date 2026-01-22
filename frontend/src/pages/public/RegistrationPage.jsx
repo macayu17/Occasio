@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { IndianRupee, Loader2, User, Mail, Phone, Tag, CreditCard, CheckCircle2 } from 'lucide-react';
+import { IndianRupee, Loader2, User, Mail, Phone, Tag, CreditCard, CheckCircle2, Ticket } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 
@@ -11,6 +11,8 @@ export default function RegistrationPage() {
   const [event, setEvent] = useState(null);
   const [form, setForm] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [tiers, setTiers] = useState([]);
+  const [selectedTier, setSelectedTier] = useState(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
@@ -27,13 +29,19 @@ export default function RegistrationPage() {
 
   const fetchEventAndForm = async () => {
     try {
-      const [eventRes, formRes] = await Promise.all([
+      const [eventRes, formRes, tiersRes] = await Promise.all([
         api.get(`/events/${id}`),
-        api.get(`/events/${id}/form`)
+        api.get(`/events/${id}/form`),
+        api.get(`/events/${id}/tiers`).catch(() => ({ data: [] }))
       ]);
 
       setEvent(eventRes.data);
       setForm(formRes.data);
+      setTiers(tiersRes.data || []);
+      // Auto-select first tier if available
+      if (tiersRes.data && tiersRes.data.length > 0) {
+        setSelectedTier(tiersRes.data[0]);
+      }
     } catch (error) {
       console.error('Error fetching event/form:', error);
       const errorMessage = error.response?.data?.error || 'Failed to load registration form';
@@ -63,9 +71,11 @@ export default function RegistrationPage() {
 
   const calculateTotal = () => {
     if (!event) return 0;
-    if (!appliedDiscount) return event.priceCents / 100;
+    // Use tier price if selected, otherwise event base price
+    const basePrice = selectedTier ? selectedTier.priceCents : event.priceCents;
+    if (!appliedDiscount) return basePrice / 100;
 
-    let original = event.priceCents / 100;
+    let original = basePrice / 100;
     if (appliedDiscount.type === 'PERCENTAGE') {
       return Math.max(0, original * (1 - appliedDiscount.amount / 100));
     } else {
@@ -80,7 +90,8 @@ export default function RegistrationPage() {
       const regResponse = await api.post(`/events/${id}/register`, {
         formResponse: data,
         discountCode: appliedDiscount ? appliedDiscount.code : undefined,
-        paymentGateway: paymentGateway
+        paymentGateway: paymentGateway,
+        tierId: selectedTier?.id
       });
 
       const { order, requiresPayment } = regResponse.data;
@@ -203,30 +214,30 @@ export default function RegistrationPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white py-12 relative overflow-hidden font-['Outfit']">
+    <div className="min-h-screen bg-[#09090b] text-white py-8 relative overflow-hidden font-['Outfit']">
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-500/10 rounded-full blur-[100px]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#E23744]/10 rounded-full blur-[100px]" />
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="glass-card bg-[#18181b]/60 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-10 shadow-2xl">
+      <div className="max-w-lg mx-auto px-4 relative z-10">
+        <div className="glass-card bg-[#18181b]/60 backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-2xl">
 
-          <div className="text-center mb-10 pb-8 border-b border-white/5">
-            <h1 className="text-3xl font-bold mb-3 text-white tracking-tight">{event.title}</h1>
-            <p className="text-gray-400">Complete your registration</p>
+          <div className="text-center mb-6 pb-4 border-b border-white/5">
+            <h1 className="text-2xl font-bold mb-2 text-white tracking-tight">{event.title}</h1>
+            <p className="text-gray-400 text-sm">Complete your registration</p>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
 
             {/* Section: Personal Details */}
-            <div className="space-y-5">
-              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                <User size={18} className="text-[#E23744]" />
+            <div className="space-y-3">
+              <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                <User size={16} className="text-[#E23744]" />
                 Personal Details
               </h3>
 
-              <div className="grid gap-5">
+              <div className="grid gap-3">
                 {form.schemaJson.fields.map((field) => (
                   <div key={field.key} className="space-y-1.5">
                     <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider ml-1">
@@ -238,21 +249,21 @@ export default function RegistrationPage() {
                         <>
                           <select
                             {...register(field.key, { required: field.required })}
-                            className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3.5 text-white focus:border-[#E23744] focus:ring-1 focus:ring-[#E23744] transition-all appearance-none"
+                            className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:border-[#E23744] focus:ring-1 focus:ring-[#E23744] transition-all appearance-none"
                           >
                             <option value="">Select an option</option>
                             {field.options.map((option) => (
                               <option key={option} value={option} className="bg-[#18181b]">{option}</option>
                             ))}
                           </select>
-                          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+                            <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                           </div>
                         </>
                       ) : field.type === 'textarea' ? (
                         <textarea
                           {...register(field.key, { required: field.required })}
-                          className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:border-[#E23744] focus:ring-1 focus:ring-[#E23744] transition-all resize-none min-h-[100px]"
+                          className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-[#E23744] focus:ring-1 focus:ring-[#E23744] transition-all resize-none min-h-[80px]"
                           placeholder={`Enter your ${field.label.toLowerCase()}...`}
                         />
                       ) : (
@@ -260,13 +271,13 @@ export default function RegistrationPage() {
                           <input
                             type={field.type}
                             {...register(field.key, { required: field.required })}
-                            className="w-full bg-black/20 border border-white/10 rounded-xl pl-11 pr-4 py-3.5 text-white placeholder-gray-600 focus:border-[#E23744] focus:ring-1 focus:ring-[#E23744] transition-all"
+                            className="w-full bg-black/20 border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-[#E23744] focus:ring-1 focus:ring-[#E23744] transition-all"
                             placeholder={`Enter your ${field.label.toLowerCase()}`}
                           />
-                          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
-                            {field.label.toLowerCase().includes('email') ? <Mail size={18} /> :
-                              field.label.toLowerCase().includes('phone') ? <Phone size={18} /> :
-                                <User size={18} />}
+                          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                            {field.label.toLowerCase().includes('email') ? <Mail size={14} /> :
+                              field.label.toLowerCase().includes('phone') ? <Phone size={14} /> :
+                                <User size={14} />}
                           </div>
                         </div>
                       )}
@@ -281,11 +292,66 @@ export default function RegistrationPage() {
               </div>
             </div>
 
+            {/* Section: Ticket Tier (only show if tiers exist) */}
+            {tiers.length > 0 && (
+              <div className="space-y-4 pt-4 border-t border-white/5">
+                <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                  <Ticket size={16} className="text-[#E23744]" />
+                  Select Ticket Type
+                </h3>
+
+                <div className="grid gap-2">
+                  {tiers.map((tier) => (
+                    <label
+                      key={tier.id}
+                      className={`relative flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all duration-200 ${selectedTier?.id === tier.id
+                        ? 'bg-[#E23744]/10 border-[#E23744] shadow-[0_0_15px_rgba(226,55,68,0.1)]'
+                        : 'bg-black/20 border-white/10 hover:border-white/20 hover:bg-white/5'
+                        }`}
+                    >
+                      <input
+                        type="radio"
+                        name="ticketTier"
+                        value={tier.id}
+                        className="sr-only"
+                        onChange={() => setSelectedTier(tier)}
+                        checked={selectedTier?.id === tier.id}
+                      />
+
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors flex-shrink-0 ${selectedTier?.id === tier.id ? 'border-[#E23744]' : 'border-gray-500'
+                        }`}>
+                        {selectedTier?.id === tier.id && <div className="w-2 h-2 rounded-full bg-[#E23744]" />}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`font-medium text-sm truncate ${selectedTier?.id === tier.id ? 'text-white' : 'text-gray-300'}`}>
+                            {tier.name}
+                          </span>
+                          <span className="text-sm font-bold text-[#E23744] flex-shrink-0">
+                            ₹{(tier.priceCents / 100).toFixed(0)}
+                          </span>
+                        </div>
+                        {tier.description && (
+                          <p className="text-xs text-gray-500 mt-0.5 truncate">{tier.description}</p>
+                        )}
+                        {tier.capacity && (
+                          <p className="text-xs text-gray-600 mt-0.5">
+                            {tier.capacity - tier.soldCount} remaining
+                          </p>
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Section: Payment */}
-            {event.priceCents > 0 && (
-              <div className="space-y-6 pt-6 border-t border-white/5">
-                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <CreditCard size={18} className="text-[#E23744]" />
+            {(selectedTier ? selectedTier.priceCents > 0 : event.priceCents > 0) && (
+              <div className="space-y-5 pt-5 border-t border-white/5">
+                <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                  <CreditCard size={16} className="text-[#E23744]" />
                   Payment
                 </h3>
 
@@ -345,8 +411,8 @@ export default function RegistrationPage() {
 
                       {/* Razorpay Option */}
                       <label className={`relative flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all duration-300 group overflow-hidden ${paymentGateway === 'RAZORPAY'
-                          ? 'bg-[#E23744]/5 border-[#E23744] shadow-[0_0_20px_rgba(226,55,68,0.1)]'
-                          : 'bg-black/20 border-white/10 hover:border-white/20 hover:bg-white/5'
+                        ? 'bg-[#E23744]/5 border-[#E23744] shadow-[0_0_20px_rgba(226,55,68,0.1)]'
+                        : 'bg-black/20 border-white/10 hover:border-white/20 hover:bg-white/5'
                         }`}>
                         <div className={`absolute left-0 top-0 bottom-0 w-1 transition-all ${paymentGateway === 'RAZORPAY' ? 'bg-[#E23744]' : 'bg-transparent'}`} />
 
@@ -366,8 +432,8 @@ export default function RegistrationPage() {
 
                       {/* PhonePe Option */}
                       <label className={`relative flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all duration-300 group overflow-hidden ${paymentGateway === 'PHONEPE'
-                          ? 'bg-purple-500/10 border-purple-500 shadow-[0_0_20px_rgba(168,85,247,0.1)]'
-                          : 'bg-black/20 border-white/10 hover:border-white/20 hover:bg-white/5'
+                        ? 'bg-purple-500/10 border-purple-500 shadow-[0_0_20px_rgba(168,85,247,0.1)]'
+                        : 'bg-black/20 border-white/10 hover:border-white/20 hover:bg-white/5'
                         }`}>
                         <div className={`absolute left-0 top-0 bottom-0 w-1 transition-all ${paymentGateway === 'PHONEPE' ? 'bg-purple-500' : 'bg-transparent'}`} />
 
