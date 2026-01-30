@@ -37,7 +37,11 @@ const limiter = rateLimit({
 app.use(helmet());
 app.use(cors({
   origin: (origin, callback) => {
-    const allowedOrigins = [process.env.FRONTEND_URL].filter(Boolean);
+    const allowedOrigins = [
+      process.env.FRONTEND_URL,
+      'https://occasio.ayushh.in',
+      'https://www.occasio.ayushh.in'
+    ].filter(Boolean);
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
 
