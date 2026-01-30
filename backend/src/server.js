@@ -37,11 +37,15 @@ const limiter = rateLimit({
 app.use(helmet());
 app.use(cors({
   origin: (origin, callback) => {
+    // Log the origin for debugging
+    console.log('Incoming origin:', origin);
+
     const allowedOrigins = [
       process.env.FRONTEND_URL,
       'https://occasio.ayushh.in',
       'https://www.occasio.ayushh.in'
     ].filter(Boolean);
+    
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
 
@@ -51,6 +55,11 @@ app.use(cors({
     }
 
     if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    }
+
+    // Explicitly allow the domain if it matches (incase of string mismatches)
+    if (origin.includes('occasio.ayushh.in')) {
       return callback(null, true);
     }
 
