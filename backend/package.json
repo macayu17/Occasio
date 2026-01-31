@@ -1,6 +1,6 @@
 {
   "name": "event-management-backend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Backend for Event Management and Booking System",
   "main": "src/server.js",
   "type": "module",

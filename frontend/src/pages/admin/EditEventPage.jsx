@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import api, { getImageUrl } from '../../utils/api';
 import toast from 'react-hot-toast';
-import { Upload } from 'lucide-react';
+import { Upload, FileText, Settings, Award } from 'lucide-react';
 import { format } from 'date-fns';
+import CertificateDesigner from '../../components/CertificateDesigner';
 
 export default function EditEventPage() {
   const { id } = useParams();
@@ -14,6 +15,8 @@ export default function EditEventPage() {
   const [fetchLoading, setFetchLoading] = useState(true);
   const [posterFile, setPosterFile] = useState(null);
   const [posterPreview, setPosterPreview] = useState(null);
+  const [activeTab, setActiveTab] = useState('details');
+  const [eventData, setEventData] = useState(null);
 
   useEffect(() => {
     fetchEvent();
@@ -23,6 +26,7 @@ export default function EditEventPage() {
     try {
       const response = await api.get(`/events/${id}`);
       const event = response.data;
+      setEventData(event);
 
       reset({
         title: event.title,
@@ -95,9 +99,42 @@ export default function EditEventPage() {
   }
 
   return (
-    <div className="max-w-3xl">
-      <h1 className="text-3xl font-bold mb-8">Edit Event</h1>
+    <div className="max-w-4xl mx-auto pb-20">
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold text-white">Edit Event</h1>
+        
+        {/* Navigation Tabs */}
+        <div className="flex bg-gray-800 rounded-lg p-1">
+          <button
+            onClick={() => setActiveTab('details')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+              activeTab === 'details' ? 'bg-[#E23744] text-white shadow-lg' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <Settings size={16} />
+            Details
+          </button>
+          <button
+            onClick={() => setActiveTab('certificate')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+              activeTab === 'certificate' ? 'bg-[#E23744] text-white shadow-lg' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <Award size={16} />
+            Certificate
+          </button>
+        </div>
+      </div>
 
+      {activeTab === 'certificate' ? (
+        <CertificateDesigner 
+          eventId={id} 
+          initialConfig={{
+            templateUrl: eventData?.certificateTemplateUrl,
+            mapping: eventData?.certificateMapping
+          }}
+        />
+      ) : (
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div className="card">
           <h2 className="text-xl font-semibold mb-4">Event Details</h2>
@@ -248,6 +285,7 @@ export default function EditEventPage() {
           </button>
         </div>
       </form>
+      )}
     </div>
   );
 }

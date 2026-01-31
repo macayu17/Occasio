@@ -4,7 +4,7 @@ import {
     ArrowLeft, Users, UserCog, QrCode, BarChart3, Palette,
     Search, Check, X, RotateCcw, LogIn, LogOut,
     Clock, UserCheck, UserX, RefreshCw, MessageSquare, Trash2, PlusCircle,
-    Mic, Ticket, Bell
+    Mic, Ticket, Bell, Award, Send
 } from 'lucide-react';
 import api from '../../utils/api';
 import { format } from 'date-fns';
@@ -22,7 +22,8 @@ const TABS = [
     { id: 'speakers', label: 'Speakers', icon: Mic },
     { id: 'reminders', label: 'Reminders', icon: Bell },
     { id: 'polls', label: 'Polls', icon: MessageSquare },
-    { id: 'style', label: 'Ticket Style', icon: Palette }
+    { id: 'style', label: 'Ticket Style', icon: Palette },
+    { id: 'certificates', label: 'Certificates', icon: Award }
 ];
 
 export default function EventControlPage() {
@@ -210,6 +211,10 @@ export default function EventControlPage() {
 
             {activeTab === 'style' && (
                 <TicketStyleTab eventId={eventId} currentStyle={event?.ticketStyle} />
+            )}
+
+            {activeTab === 'certificates' && (
+                <CertificatesTab eventId={eventId} event={event} />
             )}
         </div>
     );
@@ -1356,6 +1361,112 @@ function RemindersTab({ eventId }) {
                     ))}
                 </div>
             )}
+        </div>
+    );
+}
+
+function CertificatesTab({ eventId, event }) {
+    const [sending, setSending] = useState(false);
+    const [dryRunLoading, setDryRunLoading] = useState(false);
+    const [stats, setStats] = useState(null);
+
+    const handleSend = async (dryRun = false) => {
+        if (!confirm(dryRun ? 'Check how many emails will be sent?' : 'Are you sure you want to send certificates to ALL checked-in users?')) return;
+        
+        try {
+            if (dryRun) setDryRunLoading(true);
+            else setSending(true);
+
+            const res = await api.post(`/admin/events/${eventId}/certificates`, { dryRun });
+            
+            if (dryRun) {
+                setStats(res.data);
+                toast.success(`Found ${res.data.count} recipients`);
+            } else {
+                toast.success(res.data.message);
+            }
+        } catch (error) {
+            toast.error(error.response?.data?.error || 'Failed to send certificates');
+        } finally {
+            if (dryRun) setDryRunLoading(false);
+            else setSending(false);
+        }
+    };
+
+    if (!event.certificateEnabled) {
+      return (
+        <div className="glass-card p-12 text-center">
+            <Award className="mx-auto mb-4 text-gray-500" size={64} />
+            <h3 className="text-xl font-bold text-white mb-2">Certificates Not Configured</h3>
+            <p className="text-gray-400 mb-6 max-w-md mx-auto">
+                You haven't set up the certificate template for this event yet.
+                Go to the Edit Event page to upload a template and map fields.
+            </p>
+            <Link to={`/admin/events/${eventId}/edit`} className="btn btn-primary">
+                Configure Certificate
+            </Link>
+        </div>
+      );
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="glass-card p-6">
+                <h2 className="text-xl font-bold text-white mb-4">Certificate Dashboard</h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                        <h3 className="text-sm font-semibold text-gray-400 mb-2 uppercase">Preview</h3>
+                        <div className="relative aspect-[1.414] bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+                             {event.certificateTemplateUrl ? (
+                                <iframe 
+                                    src={event.certificateTemplateUrl} 
+                                    className="w-full h-full"
+                                    title="Certificate Preview"
+                                />
+                             ) : (
+                                <div className="flex items-center justify-center h-full text-gray-500">No Preview</div>
+                             )}
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col justify-center gap-4">
+                        <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                            <h4 className="font-semibold text-white mb-2">Ready to Send</h4>
+                            <p className="text-gray-400 text-sm mb-4">
+                                Certificates will be generated and emailed to all attendees who have checked in.
+                            </p>
+                            
+                            <div className="flex gap-4">
+                                <button 
+                                    onClick={() => handleSend(true)}
+                                    disabled={dryRunLoading || sending}
+                                    className="btn btn-ghost border border-gray-600"
+                                >
+                                    {dryRunLoading ? 'Checking...' : 'Check Recipient Count'}
+                                </button>
+                                
+                                <button 
+                                    onClick={() => handleSend(false)}
+                                    disabled={sending}
+                                    className="btn btn-primary flex-1"
+                                >
+                                    <Send size={18} className={sending ? 'animate-spin' : ''} />
+                                    {sending ? 'Sending...' : 'Send Certificates Now'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {stats && (
+                            <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                                <p className="text-blue-300">
+                                    <strong>Dry Run Result:</strong> {stats.count} certificates will be sent.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
