@@ -49,7 +49,17 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose })
       const res = await api.post('/admin/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      setTemplateUrl(res.data.url);
+      
+      // Construct full URL if it's a relative path
+      let fullUrl = res.data.url;
+      if (fullUrl && !fullUrl.startsWith('http')) {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        const baseUrl = apiUrl.replace(/\/api$/, '');
+        fullUrl = `${baseUrl}${fullUrl}`;
+      }
+      
+      console.log('Template URL:', fullUrl);
+      setTemplateUrl(fullUrl);
       setMapping([]); // Reset mapping on new template
       toast.success('Template uploaded');
     } catch (error) {
