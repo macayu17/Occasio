@@ -194,7 +194,8 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
   };
 
   const handleTestCertificate = async () => {
-    if (!templateUrl || mapping.length === 0) {
+    const template = templateUrl || pdfData;
+    if (!template || mapping.length === 0) {
       toast.error('Please upload a template and place at least one field');
       return;
     }
@@ -204,7 +205,7 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
       
       const response = await api.post(
         `/admin/events/${eventId}/certificates/test`,
-        { templateUrl, mapping },
+        { templateUrl: template, mapping },
         { responseType: 'blob' }
       );
       
@@ -243,9 +244,9 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
           </label>
           <button 
             onClick={handleTestCertificate}
-            disabled={!templateUrl || mapping.length === 0 || saving}
+            disabled={(!templateUrl && !pdfData) || mapping.length === 0}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              templateUrl && mapping.length > 0 && !saving
+              (templateUrl || pdfData) && mapping.length > 0
                 ? 'bg-blue-600 hover:bg-blue-500 text-white' 
                 : 'bg-gray-600 text-gray-400 cursor-not-allowed'
             }`}
