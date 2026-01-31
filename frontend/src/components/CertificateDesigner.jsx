@@ -80,6 +80,10 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose })
     });
   };
 
+  const getFieldName = (id) => {
+    return AVAILABLE_FIELDS.find(f => f.id === id)?.label || id;
+  };
+
   const handleFileUpload = async (e) => {
     const selectedFile = e.target.files[0];
     if (!selectedFile) return;
@@ -129,9 +133,11 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose })
   };
 
   const handlePdfClick = (e) => {
-    if (!selectedFieldId || !templateUrl) return;
+    if (!selectedFieldId || !pdfData) return;
 
-    const rect = e.target.getBoundingClientRect();
+    // Get the clickable container (the div with onClick)
+    const container = e.currentTarget;
+    const rect = container.getBoundingClientRect();
     
     // Calculate percentage based coordinates to be responsive-ish
     // But for PDF generation (pdf-lib), we usually need PostScript points (72 DPI).
@@ -153,6 +159,7 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose })
 
     setMapping(newMapping);
     setSelectedFieldId(null); // Deselect after placing
+    toast.success(`${getFieldName(selectedFieldId)} placed!`);
   };
 
   const handleSave = async () => {
@@ -172,10 +179,6 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose })
   const removeField = (fieldId) => {
     setMapping(mapping.filter(m => m.fieldId !== fieldId));
   };
-
-  function getFieldName(id) {
-    return AVAILABLE_FIELDS.find(f => f.id === id)?.label || id;
-  }
 
   return (
     <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
