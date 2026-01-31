@@ -133,17 +133,27 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose })
   };
 
   const handlePdfClick = (e) => {
-    if (!selectedFieldId || !pdfData) return;
+    console.log('PDF clicked, selectedFieldId:', selectedFieldId, 'pdfData:', !!pdfData);
+    
+    if (!selectedFieldId) {
+      toast.error('Please select a field first');
+      return;
+    }
+    
+    if (!pdfData) {
+      toast.error('Please upload a PDF template first');
+      return;
+    }
 
     // Get the clickable container (the div with onClick)
     const container = e.currentTarget;
     const rect = container.getBoundingClientRect();
     
     // Calculate percentage based coordinates to be responsive-ish
-    // But for PDF generation (pdf-lib), we usually need PostScript points (72 DPI).
-    // Let's store raw relative coordinates (0-1) and scale them during generation.
     const x = (e.clientX - rect.left) / rect.width;
     const y = (e.clientY - rect.top) / rect.height;
+    
+    console.log('Placing field at:', { x, y });
 
     // Remove existing mapping for this field if any
     const newMapping = mapping.filter(m => m.fieldId !== selectedFieldId);
@@ -158,8 +168,9 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose })
     });
 
     setMapping(newMapping);
+    const placedFieldName = getFieldName(selectedFieldId);
     setSelectedFieldId(null); // Deselect after placing
-    toast.success(`${getFieldName(selectedFieldId)} placed!`);
+    toast.success(`${placedFieldName} placed!`);
   };
 
   const handleSave = async () => {
@@ -288,7 +299,11 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose })
               </button>
             </div>
           ) : (
-            <div className="relative group cursor-crosshair w-full flex justify-center">
+            <div 
+              className="relative cursor-crosshair"
+              onClick={handlePdfClick}
+              style={{ display: 'inline-block' }}
+            >
                <Document
                 file={pdfData}
                 onLoadSuccess={({ numPages }) => {
@@ -302,34 +317,32 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose })
                 loading={<div className="animate-pulse text-white p-8">Loading PDF...</div>}
                 error={<div className="text-red-500 p-8">Failed to load PDF preview.</div>}
               >
-                <div onClick={handlePdfClick} className="relative inline-block">
-                  <Page 
-                    pageNumber={1} 
-                    width={pageWidth > 0 ? Math.min(pageWidth - 48, 800) : 600} 
-                    renderTextLayer={false}
-                    renderAnnotationLayer={false}
-                  />
-                  
-                  {/* Markers Overlay */}
-                  {mapping.map((m) => (
-                    <div
-                      key={m.fieldId}
-                      className="absolute transform -translate-x-1/2 -translate-y-1/2 bg-[#E23744] text-white text-xs px-2 py-1 rounded shadow-lg pointer-events-none whitespace-nowrap z-10"
-                      style={{
-                        left: `${m.x * 100}%`,
-                        top: `${m.y * 100}%`,
-                      }}
-                    >
-                      {getFieldName(m.fieldId)}
-                    </div>
-                  ))}
-                  
-                   {/* Ghost Marker for current selection */}
-                   {selectedFieldId && (
-                     <div className="absolute top-0 left-0 w-full h-full bg-black/10 z-0 pointer-events-none border-2 border-[#E23744] animate-pulse"></div>
-                   )}
-                </div>
+                <Page 
+                  pageNumber={1} 
+                  width={pageWidth > 0 ? Math.min(pageWidth - 48, 800) : 600} 
+                  renderTextLayer={false}
+                  renderAnnotationLayer={false}
+                />
               </Document>
+              
+              {/* Markers Overlay */}
+              {mapping.map((m) => (
+                <div
+                  key={m.fieldId}
+                  className="absolute transform -translate-x-1/2 -translate-y-1/2 bg-[#E23744] text-white text-xs px-2 py-1 rounded shadow-lg pointer-events-none whitespace-nowrap z-10"
+                  style={{
+                    left: `${m.x * 100}%`,
+                    top: `${m.y * 100}%`,
+                  }}
+                >
+                  {getFieldName(m.fieldId)}
+                </div>
+              ))}
+              
+              {/* Ghost Marker for current selection */}
+              {selectedFieldId && (
+                <div className="absolute top-0 left-0 w-full h-full bg-[#E23744]/10 z-0 pointer-events-none border-2 border-[#E23744] border-dashed"></div>
+              )}
             </div>
           )}
         </div>
