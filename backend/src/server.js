@@ -77,9 +77,9 @@ app.use(cors({
 // Webhook routes need raw body
 app.use('/api/webhooks', express.raw({ type: 'application/json' }));
 
-// Regular JSON parsing for other routes
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Regular JSON parsing for other routes - increased limit for certificate data URLs
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(limiter);
 
 // Serve uploaded files

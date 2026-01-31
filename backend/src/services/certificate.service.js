@@ -3,8 +3,21 @@ import fetch from 'node-fetch';
 
 export const generateCertificate = async (templateUrl, mapping, data) => {
   try {
-    // 1. Fetch the template
-    const existingPdfBytes = await fetch(templateUrl).then(res => res.arrayBuffer());
+    // 1. Fetch the template - handle both URLs and base64 data URLs
+    let existingPdfBytes;
+    
+    if (templateUrl.startsWith('data:')) {
+      // Handle base64 data URL
+      const base64Data = templateUrl.split(',')[1];
+      existingPdfBytes = Buffer.from(base64Data, 'base64');
+    } else {
+      // Handle regular URL
+      const response = await fetch(templateUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch template: ${response.status} ${response.statusText}`);
+      }
+      existingPdfBytes = await response.arrayBuffer();
+    }
 
     // 2. Load PDF
     const pdfDoc = await PDFDocument.load(existingPdfBytes);
