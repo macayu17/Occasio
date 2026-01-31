@@ -112,8 +112,8 @@ export default function PublicLayout() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-[#E23744] flex items-center justify-center text-white">
-                <Ticket size={16} fill="currentColor" className="transform -rotate-12" />
+              <div className="w-8 h-8 rounded-lg bg-[#27272a] flex items-center justify-center text-gray-400">
+                <Ticket size={16} />
               </div>
               <span className="text-lg font-bold text-gray-200">Occasio</span>
             </div>

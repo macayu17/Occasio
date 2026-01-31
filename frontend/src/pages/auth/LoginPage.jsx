@@ -33,9 +33,10 @@ export default function LoginPage() {
 
       <div className="max-w-md w-full relative z-10 animate-fade-in">
         <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center justify-center space-x-3 mb-6 group">
-            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-[#E23744] text-white shadow-[0_0_20px_rgba(226,55,68,0.4)] group-hover:scale-105 transition-transform duration-300">
-              <Ticket size={24} fill="currentColor" className="transform -rotate-12" />
+          <Link to="/" className="inline-flex items-center justify-center space-x-2 mb-6 group">
+            <div className="relative">
+              <Calendar className="h-12 w-12 text-white transform group-hover:scale-110 transition-transform" />
+              <Sparkles className="h-4 w-4 text-yellow-300 absolute -top-1 -right-1 animate-pulse" />
             </div>
             <span className="text-2xl font-bold text-white">Occasio</span>
           </Link>

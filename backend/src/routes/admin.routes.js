@@ -41,8 +41,10 @@ router.post('/upload', uploadPdf.single('file'), async (req, res) => {
     
     // Try Cloudinary first
     if (isCloudinaryConfigured()) {
-      const result = await uploadToCloudinary(req.file.path, 'events/certificates');
+      const result = await uploadToCloudinary(req.file.buffer || req.file.path, 'events/certificates');
       fileUrl = result.secure_url;
+    } else if (process.env.NODE_ENV === 'production' && process.env.AWS_ACCESS_KEY_ID) {
+      fileUrl = await uploadToS3(req.file);
     } else {
       // Fallback to local
       fileUrl = `/uploads/${req.file.filename}`;
