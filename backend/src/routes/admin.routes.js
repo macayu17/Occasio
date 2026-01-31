@@ -2,7 +2,7 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import prisma from '../config/db.js';
 import { authenticate, requireOrganizer, checkEventAccess } from '../middleware/auth.middleware.js';
-import { upload } from '../middleware/upload.middleware.js';
+import { upload, uploadPdf } from '../middleware/upload.middleware.js';
 import { uploadToS3 } from '../utils/s3.util.js';
 import { uploadToCloudinary, isCloudinaryConfigured } from '../utils/cloudinary.util.js';
 
@@ -30,8 +30,8 @@ const loadCertificateServices = async () => {
 router.use(authenticate);
 router.use(requireOrganizer);
 
-// Upload generic file (e.g. certificate template)
-router.post('/upload', upload.single('file'), async (req, res) => {
+// Upload certificate template (PDF)
+router.post('/upload', uploadPdf.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
