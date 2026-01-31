@@ -133,6 +133,7 @@ export default function EditEventPage() {
             templateUrl: eventData?.certificateTemplateUrl,
             mapping: eventData?.certificateMapping
           }}
+          onSave={fetchEvent}
         />
       ) : (
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">

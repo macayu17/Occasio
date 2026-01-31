@@ -14,7 +14,7 @@ const AVAILABLE_FIELDS = [
   { id: 'qrCode', label: 'Verification QR', icon: Type }, // Placeholder for future
 ];
 
-export default function CertificateDesigner({ eventId, initialConfig, onClose }) {
+export default function CertificateDesigner({ eventId, initialConfig, onClose, onSave }) {
   const [pdfData, setPdfData] = useState(null); // Store as data URL or blob for preview
   const [templateUrl, setTemplateUrl] = useState(initialConfig?.templateUrl || null);
   const [mapping, setMapping] = useState(initialConfig?.mapping || []);
@@ -43,12 +43,18 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose })
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Load existing template URL as blob for preview
+  // Load existing template URL as blob for preview and sync state
   useEffect(() => {
-    if (initialConfig?.templateUrl && !pdfData) {
-      loadPdfFromUrl(initialConfig.templateUrl);
+    if (initialConfig?.templateUrl) {
+      setTemplateUrl(initialConfig.templateUrl);
+      if (!pdfData) {
+        loadPdfFromUrl(initialConfig.templateUrl);
+      }
     }
-  }, [initialConfig?.templateUrl]);
+    if (initialConfig?.mapping) {
+      setMapping(initialConfig.mapping);
+    }
+  }, [initialConfig?.templateUrl, initialConfig?.mapping]);
 
   const loadPdfFromUrl = async (url) => {
     try {
@@ -181,7 +187,7 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose })
         certificateMapping: mapping
       });
       toast.success('Certificate configuration saved!');
-      if(onClose) onClose();
+      if(onSave) onSave(); // Refresh parent data
     } catch (error) {
       toast.error('Failed to save configuration');
     }
@@ -237,9 +243,9 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose })
           </label>
           <button 
             onClick={handleTestCertificate}
-            disabled={!templateUrl || mapping.length === 0}
+            disabled={!templateUrl || mapping.length === 0 || saving}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              templateUrl && mapping.length > 0 
+              templateUrl && mapping.length > 0 && !saving
                 ? 'bg-blue-600 hover:bg-blue-500 text-white' 
                 : 'bg-gray-600 text-gray-400 cursor-not-allowed'
             }`}
