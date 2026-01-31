@@ -8,6 +8,24 @@ import { uploadToCloudinary, isCloudinaryConfigured } from '../utils/cloudinary.
 
 const router = express.Router();
 
+// Lazy load certificate service to avoid startup errors if pdf-lib isn't installed
+let generateCertificate = null;
+let sendCertificateEmail = null;
+
+const loadCertificateServices = async () => {
+  if (!generateCertificate) {
+    try {
+      const certService = await import('../services/certificate.service.js');
+      generateCertificate = certService.generateCertificate;
+      const emailService = await import('../services/email.service.js');
+      sendCertificateEmail = emailService.sendCertificateEmail;
+    } catch (error) {
+      console.error('Failed to load certificate services:', error);
+      throw new Error('Certificate generation not available. Please ensure pdf-lib is installed.');
+    }
+  }
+};
+
 // All admin routes require authentication
 router.use(authenticate);
 router.use(requireOrganizer);
@@ -1267,11 +1285,14 @@ router.delete('/events/:id/team/:memberId', async (req, res) => {
   }
 });
 
-import { generateCertificate } from '../services/certificate.service.js';
-import { sendCertificateEmail } from '../services/email.service.js';
-
 // Send Certificates to checked-in users
 router.post('/events/:id/certificates', async (req, res) => {
+  try {
+    await loadCertificateServices();
+  } catch (error) {
+    return res.status(500).json({ error: 'Certificate service unavailable: ' + error.message });
+  }
+
   try {
     const { id } = req.params;
     const { dryRun } = req.body; // if true, just return count
