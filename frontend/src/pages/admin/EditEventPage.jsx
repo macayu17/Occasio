@@ -100,11 +100,11 @@ export default function EditEventPage() {
 
   return (
     <div className="max-w-4xl mx-auto pb-20">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-white">Edit Event</h1>
-        
-        {/* Navigation Tabs */}
-        <div className="flex bg-gray-800 rounded-lg p-1">
+      <h1 className="text-3xl font-bold text-white mb-6">Edit Event</h1>
+      
+      {/* Navigation Tabs */}
+      <div className="mb-8">
+        <div className="flex bg-gray-800 rounded-lg p-1 w-fit">
           <button
             onClick={() => setActiveTab('details')}
             className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
