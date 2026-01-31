@@ -3,6 +3,8 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import { Upload, Save, Type, Calendar, Trash2 } from 'lucide-react';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
 
 // Configure PDF worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -15,22 +17,70 @@ const AVAILABLE_FIELDS = [
 ];
 
 export default function CertificateDesigner({ eventId, initialConfig, onClose }) {
-  const [file, setFile] = useState(null);
+  const [pdfData, setPdfData] = useState(null); // Store as data URL or blob for preview
   const [templateUrl, setTemplateUrl] = useState(initialConfig?.templateUrl || null);
   const [mapping, setMapping] = useState(initialConfig?.mapping || []);
   const [selectedFieldId, setSelectedFieldId] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [pageWidth, setPageWidth] = useState(0);
   const [numPages, setNumPages] = useState(null);
+  const [pdfError, setPdfError] = useState(null);
 
   const containerRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
-    // Resize observer or simple effect to get container width
+    // Resize observer to get container width
     if (containerRef.current) {
       setPageWidth(containerRef.current.clientWidth);
     }
+    
+    const handleResize = () => {
+      if (containerRef.current) {
+        setPageWidth(containerRef.current.clientWidth);
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Load existing template URL as blob for preview
+  useEffect(() => {
+    if (initialConfig?.templateUrl && !pdfData) {
+      loadPdfFromUrl(initialConfig.templateUrl);
+    }
+  }, [initialConfig?.templateUrl]);
+
+  const loadPdfFromUrl = async (url) => {
+    try {
+      setPdfError(null);
+      const response = await fetch(url, { 
+        mode: 'cors',
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch PDF: ${response.status}`);
+      }
+      
+      const blob = await response.blob();
+      const dataUrl = await blobToDataUrl(blob);
+      setPdfData(dataUrl);
+    } catch (error) {
+      console.error('Error loading PDF:', error);
+      setPdfError('Failed to load PDF template. CORS or network issue.');
+    }
+  };
+
+  const blobToDataUrl = (blob) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
 
   const handleFileUpload = async (e) => {
     const selectedFile = e.target.files[0];
@@ -39,6 +89,15 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose })
     if (selectedFile.type !== 'application/pdf') {
       toast.error('Please upload a PDF file');
       return;
+    }
+
+    // Immediately show preview from local file
+    try {
+      const dataUrl = await blobToDataUrl(selectedFile);
+      setPdfData(dataUrl);
+      setPdfError(null);
+    } catch (error) {
+      console.error('Error reading file:', error);
     }
 
     setUploading(true);
@@ -65,6 +124,7 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose })
     } catch (error) {
       console.error(error);
       toast.error('Upload failed');
+      setPdfData(null); // Clear preview on upload failure
     } finally {
       setUploading(false);
     }
@@ -128,6 +188,7 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose })
             <Upload size={18} />
             <span>{uploading ? 'Uploading...' : 'Upload PDF Template'}</span>
             <input 
+              ref={fileInputRef}
               type="file" 
               accept="application/pdf"
               className="hidden" 
@@ -137,7 +198,12 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose })
           </label>
           <button 
             onClick={handleSave}
-            className="flex items-center gap-2 px-4 py-2 bg-[#E23744] hover:bg-[#c92a37] text-white rounded-lg transition-colors"
+            disabled={!templateUrl}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              templateUrl 
+                ? 'bg-[#E23744] hover:bg-[#c92a37] text-white' 
+                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+            }`}
           >
             <Save size={18} />
             <span>Save Config</span>
@@ -200,23 +266,45 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose })
 
         {/* PDF Preview Area */}
         <div className="md:col-span-3 bg-gray-900 rounded-lg border border-dashed border-gray-700 min-h-[500px] flex items-center justify-center relative overflow-hidden" ref={containerRef}>
-          {!templateUrl ? (
+          {!pdfData && !uploading ? (
             <div className="text-center text-gray-500">
               <Upload size={48} className="mx-auto mb-4 opacity-50" />
               <p>Upload a PDF Certificate Template to start</p>
             </div>
+          ) : uploading && !pdfData ? (
+            <div className="text-center text-gray-400">
+              <div className="animate-spin w-12 h-12 border-4 border-[#E23744] border-t-transparent rounded-full mx-auto mb-4"></div>
+              <p>Uploading template...</p>
+            </div>
+          ) : pdfError ? (
+            <div className="text-center text-red-400">
+              <p>{pdfError}</p>
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-4 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+              >
+                Try uploading again
+              </button>
+            </div>
           ) : (
-            <div className="relative group cursor-crosshair">
+            <div className="relative group cursor-crosshair w-full flex justify-center">
                <Document
-                file={templateUrl}
-                onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-                loading={<div className="animate-pulse text-white">Loading PDF...</div>}
-                error={<div className="text-red-500">Failed to load PDF. Check URL/CORS.</div>}
+                file={pdfData}
+                onLoadSuccess={({ numPages }) => {
+                  setNumPages(numPages);
+                  setPdfError(null);
+                }}
+                onLoadError={(error) => {
+                  console.error('PDF load error:', error);
+                  setPdfError('Failed to render PDF. The file may be corrupted.');
+                }}
+                loading={<div className="animate-pulse text-white p-8">Loading PDF...</div>}
+                error={<div className="text-red-500 p-8">Failed to load PDF preview.</div>}
               >
                 <div onClick={handlePdfClick} className="relative inline-block">
                   <Page 
                     pageNumber={1} 
-                    width={pageWidth > 0 ? pageWidth - 48 : 600} 
+                    width={pageWidth > 0 ? Math.min(pageWidth - 48, 800) : 600} 
                     renderTextLayer={false}
                     renderAnnotationLayer={false}
                   />
