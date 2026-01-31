@@ -1287,6 +1287,58 @@ router.delete('/events/:id/team/:memberId', async (req, res) => {
   }
 });
 
+// Test/Preview Certificate - generates a sample certificate with dummy data
+router.post('/events/:id/certificates/test', async (req, res) => {
+  try {
+    await loadCertificateServices();
+  } catch (error) {
+    return res.status(500).json({ error: 'Certificate service unavailable: ' + error.message });
+  }
+
+  try {
+    const { id } = req.params;
+    const { templateUrl, mapping } = req.body;
+
+    // Use provided template/mapping or fetch from event
+    let finalTemplateUrl = templateUrl;
+    let finalMapping = mapping;
+
+    if (!templateUrl || !mapping) {
+      const event = await prisma.event.findUnique({
+        where: { id }
+      });
+
+      if (!event) return res.status(404).json({ error: 'Event not found' });
+      
+      finalTemplateUrl = templateUrl || event.certificateTemplateUrl;
+      finalMapping = mapping || event.certificateMapping;
+    }
+
+    if (!finalTemplateUrl) {
+      return res.status(400).json({ error: 'No template URL provided' });
+    }
+
+    // Generate with sample data
+    const sampleData = {
+      userName: 'John Doe',
+      eventName: 'Sample Event Name',
+      date: new Date().toDateString(),
+      qrCode: 'TEST-QR-12345'
+    };
+
+    const pdfBytes = await generateCertificate(finalTemplateUrl, finalMapping || [], sampleData);
+
+    // Return as PDF
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="test-certificate.pdf"');
+    res.send(Buffer.from(pdfBytes));
+
+  } catch (error) {
+    console.error('Test certificate error:', error);
+    res.status(500).json({ error: 'Failed to generate test certificate: ' + error.message });
+  }
+});
+
 // Send Certificates to checked-in users
 router.post('/events/:id/certificates', async (req, res) => {
   try {

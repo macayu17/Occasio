@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { Upload, Save, Type, Calendar, Trash2 } from 'lucide-react';
+import { Upload, Save, Type, Calendar, Trash2, Eye } from 'lucide-react';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
 
@@ -187,6 +187,33 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose })
     }
   };
 
+  const handleTestCertificate = async () => {
+    if (!templateUrl || mapping.length === 0) {
+      toast.error('Please upload a template and place at least one field');
+      return;
+    }
+
+    try {
+      toast.loading('Generating test certificate...', { id: 'test-cert' });
+      
+      const response = await api.post(
+        `/admin/events/${eventId}/certificates/test`,
+        { templateUrl, mapping },
+        { responseType: 'blob' }
+      );
+      
+      // Create blob URL and open in new tab
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      
+      toast.success('Test certificate generated!', { id: 'test-cert' });
+    } catch (error) {
+      console.error('Test certificate error:', error);
+      toast.error('Failed to generate test certificate', { id: 'test-cert' });
+    }
+  };
+
   const removeField = (fieldId) => {
     setMapping(mapping.filter(m => m.fieldId !== fieldId));
   };
@@ -209,10 +236,22 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose })
             />
           </label>
           <button 
-            onClick={handleSave}
-            disabled={!templateUrl}
+            onClick={handleTestCertificate}
+            disabled={!templateUrl || mapping.length === 0}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              templateUrl 
+              templateUrl && mapping.length > 0 
+                ? 'bg-blue-600 hover:bg-blue-500 text-white' 
+                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            <Eye size={18} />
+            <span>Test</span>
+          </button>
+          <button 
+            onClick={handleSave}
+            disabled={!pdfData || mapping.length === 0}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              pdfData && mapping.length > 0 
                 ? 'bg-[#E23744] hover:bg-[#c92a37] text-white' 
                 : 'bg-gray-600 text-gray-400 cursor-not-allowed'
             }`}
