@@ -12,6 +12,31 @@ const router = express.Router();
 router.use(authenticate);
 router.use(requireOrganizer);
 
+// Upload generic file (e.g. certificate template)
+router.post('/upload', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    let fileUrl;
+    
+    // Try Cloudinary first
+    if (isCloudinaryConfigured()) {
+      const result = await uploadToCloudinary(req.file.path, 'events/certificates');
+      fileUrl = result.secure_url;
+    } else {
+      // Fallback to local
+      fileUrl = `/uploads/${req.file.filename}`;
+    }
+
+    res.json({ url: fileUrl });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ error: 'Failed to upload file' });
+  }
+});
+
 // Create event
 router.post('/events',
   [
@@ -1239,6 +1264,96 @@ router.delete('/events/:id/team/:memberId', async (req, res) => {
   } catch (error) {
     console.error('Remove team member error:', error);
     res.status(500).json({ error: 'Failed to remove team member' });
+  }
+});
+
+import { generateCertificate } from '../services/certificate.service.js';
+import { sendCertificateEmail } from '../services/email.service.js';
+
+// Send Certificates to checked-in users
+router.post('/events/:id/certificates', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { dryRun } = req.body; // if true, just return count
+
+    const event = await prisma.event.findUnique({
+      where: { id }
+    });
+
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    if (!event.certificateEnabled || !event.certificateTemplateUrl) {
+      return res.status(400).json({ error: 'Certificates not configured for this event' });
+    }
+
+    // Find checked-in tickets
+    const tickets = await prisma.ticket.findMany({
+      where: {
+        checkedInAt: { not: null },
+        order: {
+          registration: {
+            eventId: id
+          }
+        }
+      },
+      include: {
+        order: {
+          include: {
+            registration: true
+          }
+        }
+      }
+    });
+
+    if (tickets.length === 0) {
+      return res.json({ message: 'No checked-in attendees found', count: 0 });
+    }
+
+    if (dryRun) {
+      return res.json({ message: 'Dry run complete', count: tickets.length });
+    }
+
+    let sentCount = 0;
+    
+    // Process certificates
+    for (const ticket of tickets) {
+      const registration = ticket.order.registration;
+      // Use registration name if available, else fallback (schema says userEmail on registration, name might be in User model if we linked it, but registration has userEmail. Let's assume we need name.)
+      // Registration model doesn't have name field in the snippet I saw earlier? 
+      // Wait, let me check schema again. Registration has `userEmail`. User model has `name`.
+      // But Registration doesn't link to User directly? 
+      // "userEmail" map "user_email". "User" model has "email" @unique.
+      
+      const user = await prisma.user.findUnique({
+        where: { email: registration.userEmail }
+      });
+      
+      const userName = user ? user.name : registration.userEmail.split('@')[0];
+      const eventDate = event.startTime.toDateString();
+
+      try {
+        const pdfBytes = await generateCertificate(
+            event.certificateTemplateUrl,
+            event.certificateMapping,
+            {
+                userName,
+                eventName: event.title,
+                date: eventDate,
+                qrCode: ticket.id 
+            }
+        );
+
+        await sendCertificateEmail(registration.userEmail, userName, event.title, Buffer.from(pdfBytes));
+        sentCount++;
+      } catch (err) {
+        console.error(`Failed to send cert to ${registration.userEmail}`, err);
+      }
+    }
+
+    res.json({ message: `Certificates sent to ${sentCount} attendees`, count: sentCount });
+
+  } catch (error) {
+    console.error('Certificate generation error:', error);
+    res.status(500).json({ error: 'Failed to generate certificates' });
   }
 });
 

@@ -235,3 +235,32 @@ export async function sendCustomEmail(to, subject, html) {
 
   return transporter.sendMail(mailOptions);
 }
+
+export async function sendCertificateEmail(toEmail, userName, eventName, pdfBuffer) {
+  try {
+    await transporter.sendMail({
+      from: `"Occasio Events" <${process.env.SMTP_FROM_EMAIL || 'noreply@occasio.io'}>`,
+      to: toEmail,
+      subject: `Certificate of Participation - ${eventName}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+          <h1>Hi ${userName},</h1>
+          <p>Thank you for attending <strong>${eventName}</strong>.</p>
+          <p>Please find your certificate of participation attached to this email.</p>
+          <br>
+          <p>Best regards,<br>The Occasio Team</p>
+        </div>
+      `,
+      attachments: [
+        {
+          filename: `Certificate - ${eventName}.pdf`,
+          content: pdfBuffer,
+          contentType: 'application/pdf'
+        }
+      ]
+    });
+    console.log(`Certificate sent to ${toEmail}`);
+  } catch (error) {
+    console.error('Email send error:', error);
+  }
+}

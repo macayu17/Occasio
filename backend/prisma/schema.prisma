@@ -66,6 +66,11 @@ model Event {
   
   // Ticket styling options (JSON: template, primaryColor, accentColor, logoUrl)
   ticketStyle Json?         @map("ticket_style")
+
+  // Certificate styling
+  certificateEnabled      Boolean   @default(false) @map("certificate_enabled")
+  certificateTemplateUrl  String?   @map("certificate_template_url")
+  certificateMapping      Json?     @map("certificate_mapping")
   
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
