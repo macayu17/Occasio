@@ -71,6 +71,8 @@ model Event {
   certificateEnabled      Boolean   @default(false) @map("certificate_enabled")
   certificateTemplateUrl  String?   @map("certificate_template_url")
   certificateMapping      Json?     @map("certificate_mapping")
+  // Multi-type certificate configs: { participation: {templateUrl, mapping, enabled}, first_prize: {...}, second_prize: {...}, third_prize: {...} }
+  certificateConfigs      Json?     @map("certificate_configs")
   
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")

@@ -1,79 +1,148 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { Upload, Save, Type, Calendar, Trash2, Eye } from 'lucide-react';
+import { Upload, Save, Type, Calendar, Trash2, Eye, Award, Trophy, Medal, Users, Send, Mail } from 'lucide-react';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
 
 // Configure PDF worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
+const CERTIFICATE_TYPES = [
+  { id: 'participation', label: 'Participation', icon: Users, color: 'blue', description: 'For all checked-in attendees' },
+  { id: 'first_prize', label: '1st Prize', icon: Trophy, color: 'yellow', description: 'Gold — Winner' },
+  { id: 'second_prize', label: '2nd Prize', icon: Medal, color: 'gray', description: 'Silver — Runner-up' },
+  { id: 'third_prize', label: '3rd Prize', icon: Award, color: 'orange', description: 'Bronze — Second runner-up' },
+];
+
 const AVAILABLE_FIELDS = [
   { id: 'userName', label: 'Attendee Name', icon: Type },
   { id: 'eventName', label: 'Event Name', icon: Type },
   { id: 'date', label: 'Event Date', icon: Calendar },
-  { id: 'qrCode', label: 'Verification QR', icon: Type }, // Placeholder for future
+  { id: 'certificateType', label: 'Certificate Type', icon: Award },
+  { id: 'rank', label: 'Rank / Prize', icon: Trophy },
+  { id: 'qrCode', label: 'Verification QR', icon: Type },
 ];
 
 export default function CertificateDesigner({ eventId, initialConfig, onClose, onSave }) {
-  const [pdfData, setPdfData] = useState(null); // Store as data URL or blob for preview
-  const [templateUrl, setTemplateUrl] = useState(initialConfig?.templateUrl || null);
-  const [mapping, setMapping] = useState(initialConfig?.mapping || []);
+  // Active certificate type tab
+  const [activeCertType, setActiveCertType] = useState('participation');
+  
+  // Per-type state: { [certType]: { pdfData, templateUrl, mapping } }
+  const [configs, setConfigs] = useState({});
+  
   const [selectedFieldId, setSelectedFieldId] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [pageWidth, setPageWidth] = useState(0);
   const [numPages, setNumPages] = useState(null);
   const [pdfError, setPdfError] = useState(null);
+  const [sendModalOpen, setSendModalOpen] = useState(false);
+  const [sendEmails, setSendEmails] = useState('');
+  const [sendingType, setSendingType] = useState('participation');
 
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
 
+  // Current active config helpers
+  const activeConfig = configs[activeCertType] || { pdfData: null, templateUrl: null, mapping: [] };
+  
+  const updateActiveConfig = (updates) => {
+    setConfigs(prev => ({
+      ...prev,
+      [activeCertType]: { ...prev[activeCertType] || { pdfData: null, templateUrl: null, mapping: [] }, ...updates }
+    }));
+  };
+
   useEffect(() => {
-    // Resize observer to get container width
     if (containerRef.current) {
       setPageWidth(containerRef.current.clientWidth);
     }
-    
     const handleResize = () => {
       if (containerRef.current) {
         setPageWidth(containerRef.current.clientWidth);
       }
     };
-    
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Load existing template URL as blob for preview and sync state
+  // Load existing certificate configs from backend
   useEffect(() => {
-    if (initialConfig?.templateUrl) {
-      setTemplateUrl(initialConfig.templateUrl);
-      if (!pdfData) {
-        loadPdfFromUrl(initialConfig.templateUrl);
-      }
-    }
-    if (initialConfig?.mapping) {
-      setMapping(initialConfig.mapping);
-    }
-  }, [initialConfig?.templateUrl, initialConfig?.mapping]);
+    loadCertificateConfigs();
+  }, [eventId]);
 
-  const loadPdfFromUrl = async (url) => {
+  const loadCertificateConfigs = async () => {
     try {
-      setPdfError(null);
-      const response = await fetch(url, { 
-        mode: 'cors',
-        credentials: 'include'
-      });
+      const response = await api.get(`/admin/events/${eventId}/certificates/config`);
+      const { configs: serverConfigs } = response.data;
       
-      if (!response.ok) {
-        throw new Error(`Failed to fetch PDF: ${response.status}`);
+      if (serverConfigs && Object.keys(serverConfigs).length > 0) {
+        const loadedConfigs = {};
+        for (const [type, config] of Object.entries(serverConfigs)) {
+          loadedConfigs[type] = {
+            templateUrl: config.templateUrl || null,
+            mapping: config.mapping || [],
+            pdfData: null,
+            enabled: config.enabled !== false
+          };
+          // Load PDF preview if URL exists
+          if (config.templateUrl) {
+            loadPdfFromUrl(config.templateUrl, type);
+          }
+        }
+        setConfigs(prev => ({ ...prev, ...loadedConfigs }));
+      } else if (initialConfig?.templateUrl) {
+        // Fallback: load legacy config as participation
+        setConfigs(prev => ({
+          ...prev,
+          participation: {
+            templateUrl: initialConfig.templateUrl,
+            mapping: initialConfig.mapping || [],
+            pdfData: null,
+            enabled: true
+          }
+        }));
+        if (initialConfig.templateUrl) {
+          loadPdfFromUrl(initialConfig.templateUrl, 'participation');
+        }
       }
-      
+    } catch (error) {
+      console.error('Failed to load certificate configs:', error);
+      // Fallback to initialConfig
+      if (initialConfig?.templateUrl) {
+        setConfigs({
+          participation: {
+            templateUrl: initialConfig.templateUrl,
+            mapping: initialConfig.mapping || [],
+            pdfData: null,
+            enabled: true
+          }
+        });
+        loadPdfFromUrl(initialConfig.templateUrl, 'participation');
+      }
+    }
+  };
+
+  const loadPdfFromUrl = async (url, certType) => {
+    try {
+      // For local URLs, use the API base
+      let fetchUrl = url;
+      if (url && !url.startsWith('http') && !url.startsWith('data:')) {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        const baseUrl = apiUrl.replace(/\/api$/, '');
+        fetchUrl = `${baseUrl}${url}`;
+      }
+
+      const response = await fetch(fetchUrl, { mode: 'cors' });
+      if (!response.ok) throw new Error(`Failed to fetch PDF: ${response.status}`);
       const blob = await response.blob();
       const dataUrl = await blobToDataUrl(blob);
-      setPdfData(dataUrl);
+      
+      setConfigs(prev => ({
+        ...prev,
+        [certType]: { ...prev[certType] || { templateUrl: url, mapping: [] }, pdfData: dataUrl }
+      }));
     } catch (error) {
-      console.error('Error loading PDF:', error);
-      setPdfError('Failed to load PDF template. CORS or network issue.');
+      console.error(`Error loading PDF for ${certType}:`, error);
     }
   };
 
@@ -99,10 +168,10 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
       return;
     }
 
-    // Immediately show preview from local file
+    // Show local preview immediately
     try {
       const dataUrl = await blobToDataUrl(selectedFile);
-      setPdfData(dataUrl);
+      updateActiveConfig({ pdfData: dataUrl });
       setPdfError(null);
     } catch (error) {
       console.error('Error reading file:', error);
@@ -117,85 +186,89 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       
-      // Construct full URL if it's a relative path
       let fullUrl = res.data.url;
-      if (fullUrl && !fullUrl.startsWith('http')) {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-        const baseUrl = apiUrl.replace(/\/api$/, '');
-        fullUrl = `${baseUrl}${fullUrl}`;
-      }
-      
       console.log('Template URL:', fullUrl);
-      setTemplateUrl(fullUrl);
-      setMapping([]); // Reset mapping on new template
+      updateActiveConfig({ templateUrl: fullUrl, mapping: [] });
       toast.success('Template uploaded');
     } catch (error) {
       console.error(error);
       toast.error('Upload failed');
-      setPdfData(null); // Clear preview on upload failure
+      updateActiveConfig({ pdfData: null });
     } finally {
       setUploading(false);
+      // Reset file input
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
   const handlePdfClick = (e) => {
-    console.log('PDF clicked, selectedFieldId:', selectedFieldId, 'pdfData:', !!pdfData);
-    
     if (!selectedFieldId) {
       toast.error('Please select a field first');
       return;
     }
-    
-    if (!pdfData) {
+    if (!activeConfig.pdfData) {
       toast.error('Please upload a PDF template first');
       return;
     }
 
-    // Get the clickable container (the div with onClick)
     const container = e.currentTarget;
     const rect = container.getBoundingClientRect();
-    
-    // Calculate percentage based coordinates to be responsive-ish
     const x = (e.clientX - rect.left) / rect.width;
     const y = (e.clientY - rect.top) / rect.height;
-    
-    console.log('Placing field at:', { x, y });
 
-    // Remove existing mapping for this field if any
-    const newMapping = mapping.filter(m => m.fieldId !== selectedFieldId);
-
+    const newMapping = (activeConfig.mapping || []).filter(m => m.fieldId !== selectedFieldId);
     newMapping.push({
       fieldId: selectedFieldId,
       x,
       y,
-      fontSize: 12,
+      fontSize: 14,
       color: '#000000',
+      bold: selectedFieldId === 'userName' || selectedFieldId === 'rank',
       font: 'Helvetica'
     });
 
-    setMapping(newMapping);
+    updateActiveConfig({ mapping: newMapping });
     const placedFieldName = getFieldName(selectedFieldId);
-    setSelectedFieldId(null); // Deselect after placing
+    setSelectedFieldId(null);
     toast.success(`${placedFieldName} placed!`);
   };
 
   const handleSave = async () => {
+    const cfg = activeConfig;
+    if (!cfg.templateUrl && !cfg.pdfData) {
+      toast.error('Please upload a template first');
+      return;
+    }
+
     try {
-      await api.put(`/admin/events/${eventId}`, {
-        certificateEnabled: true,
-        certificateTemplateUrl: templateUrl,
-        certificateMapping: mapping
+      // Use the new typed config endpoint
+      await api.put(`/admin/events/${eventId}/certificates/config`, {
+        certificateType: activeCertType,
+        templateUrl: cfg.templateUrl,
+        mapping: cfg.mapping,
+        enabled: true
       });
-      toast.success('Certificate configuration saved!');
-      if(onSave) onSave(); // Refresh parent data
+
+      // Also save legacy fields for backward compatibility
+      if (activeCertType === 'participation') {
+        await api.put(`/admin/events/${eventId}`, {
+          certificateEnabled: true,
+          certificateTemplateUrl: cfg.templateUrl,
+          certificateMapping: cfg.mapping
+        });
+      }
+
+      toast.success(`${CERTIFICATE_TYPES.find(t => t.id === activeCertType)?.label} certificate config saved!`);
+      if (onSave) onSave();
     } catch (error) {
       toast.error('Failed to save configuration');
     }
   };
 
   const handleTestCertificate = async () => {
-    const template = templateUrl || pdfData;
-    if (!template || mapping.length === 0) {
+    const cfg = activeConfig;
+    const template = cfg.templateUrl || cfg.pdfData;
+    if (!template || (cfg.mapping || []).length === 0) {
       toast.error('Please upload a template and place at least one field');
       return;
     }
@@ -205,11 +278,10 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
       
       const response = await api.post(
         `/admin/events/${eventId}/certificates/test`,
-        { templateUrl: template, mapping },
+        { templateUrl: template, mapping: cfg.mapping, certificateType: activeCertType },
         { responseType: 'blob' }
       );
       
-      // Create blob URL and open in new tab
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       window.open(url, '_blank');
@@ -221,16 +293,71 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
     }
   };
 
-  const removeField = (fieldId) => {
-    setMapping(mapping.filter(m => m.fieldId !== fieldId));
+  const handleSendCertificates = async () => {
+    const certType = sendingType;
+    const cfg = configs[certType];
+    
+    if (!cfg?.templateUrl) {
+      toast.error(`No template configured for ${CERTIFICATE_TYPES.find(t => t.id === certType)?.label}. Upload and save a template first.`);
+      return;
+    }
+
+    const isPrize = ['first_prize', 'second_prize', 'third_prize'].includes(certType);
+    const emailList = isPrize ? sendEmails.split(/[,\n]+/).map(e => e.trim()).filter(Boolean) : [];
+
+    if (isPrize && emailList.length === 0) {
+      toast.error('Please enter at least one recipient email');
+      return;
+    }
+
+    try {
+      toast.loading('Sending certificates...', { id: 'send-cert' });
+      
+      const payload = {
+        certificateType: certType,
+        ...(isPrize ? { recipientEmails: emailList } : {})
+      };
+
+      const response = await api.post(`/admin/events/${eventId}/certificates`, payload);
+      
+      toast.success(response.data.message || `Certificates sent!`, { id: 'send-cert' });
+      setSendModalOpen(false);
+      setSendEmails('');
+    } catch (error) {
+      console.error('Send certificates error:', error);
+      toast.error(error.response?.data?.error || 'Failed to send certificates', { id: 'send-cert' });
+    }
   };
+
+  const removeField = (fieldId) => {
+    updateActiveConfig({ mapping: (activeConfig.mapping || []).filter(m => m.fieldId !== fieldId) });
+  };
+
+  const currentMapping = activeConfig.mapping || [];
+
+  // Color classes based on certificate type
+  const typeColorClasses = {
+    participation: { bg: 'bg-blue-600', bgHover: 'hover:bg-blue-500', ring: 'ring-blue-500', text: 'text-blue-400', bgLight: 'bg-blue-900/20', border: 'border-blue-700' },
+    first_prize: { bg: 'bg-yellow-600', bgHover: 'hover:bg-yellow-500', ring: 'ring-yellow-500', text: 'text-yellow-400', bgLight: 'bg-yellow-900/20', border: 'border-yellow-700' },
+    second_prize: { bg: 'bg-gray-500', bgHover: 'hover:bg-gray-400', ring: 'ring-gray-400', text: 'text-gray-300', bgLight: 'bg-gray-700/20', border: 'border-gray-500' },
+    third_prize: { bg: 'bg-orange-600', bgHover: 'hover:bg-orange-500', ring: 'ring-orange-500', text: 'text-orange-400', bgLight: 'bg-orange-900/20', border: 'border-orange-700' },
+  };
+  const colors = typeColorClasses[activeCertType] || typeColorClasses.participation;
 
   return (
     <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-bold text-white">Certificate Designer</h2>
         <div className="flex gap-2">
-           <label className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg cursor-pointer transition-colors">
+          {/* Send Certificates Button */}
+          <button
+            onClick={() => { setSendingType(activeCertType); setSendModalOpen(true); }}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition-colors"
+          >
+            <Send size={18} />
+            <span>Send Certificates</span>
+          </button>
+          <label className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg cursor-pointer transition-colors">
             <Upload size={18} />
             <span>{uploading ? 'Uploading...' : 'Upload PDF Template'}</span>
             <input 
@@ -244,9 +371,9 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
           </label>
           <button 
             onClick={handleTestCertificate}
-            disabled={(!templateUrl && !pdfData) || mapping.length === 0}
+            disabled={(!activeConfig.templateUrl && !activeConfig.pdfData) || currentMapping.length === 0}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              (templateUrl || pdfData) && mapping.length > 0
+              (activeConfig.templateUrl || activeConfig.pdfData) && currentMapping.length > 0
                 ? 'bg-blue-600 hover:bg-blue-500 text-white' 
                 : 'bg-gray-600 text-gray-400 cursor-not-allowed'
             }`}
@@ -256,9 +383,9 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
           </button>
           <button 
             onClick={handleSave}
-            disabled={!pdfData || mapping.length === 0}
+            disabled={!activeConfig.pdfData || currentMapping.length === 0}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              pdfData && mapping.length > 0 
+              activeConfig.pdfData && currentMapping.length > 0 
                 ? 'bg-[#E23744] hover:bg-[#c92a37] text-white' 
                 : 'bg-gray-600 text-gray-400 cursor-not-allowed'
             }`}
@@ -269,6 +396,42 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
         </div>
       </div>
 
+      {/* Certificate Type Tabs */}
+      <div className="flex gap-2 mb-6 bg-gray-900/50 p-2 rounded-xl">
+        {CERTIFICATE_TYPES.map(type => {
+          const isActive = activeCertType === type.id;
+          const hasConfig = configs[type.id]?.templateUrl;
+          const Icon = type.icon;
+          return (
+            <button
+              key={type.id}
+              onClick={() => { setActiveCertType(type.id); setSelectedFieldId(null); setPdfError(null); }}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                isActive
+                  ? `${typeColorClasses[type.id].bg} text-white shadow-lg`
+                  : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+              }`}
+            >
+              <Icon size={18} />
+              <span>{type.label}</span>
+              {hasConfig && !isActive && (
+                <span className="w-2 h-2 rounded-full bg-green-400 ml-1"></span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Type Description */}
+      <div className={`mb-4 px-4 py-2 rounded-lg ${colors.bgLight} border ${colors.border}`}>
+        <p className={`text-sm ${colors.text}`}>
+          {CERTIFICATE_TYPES.find(t => t.id === activeCertType)?.description}
+          {['first_prize', 'second_prize', 'third_prize'].includes(activeCertType) && (
+            <span className="text-gray-400 ml-2">— Send to specific recipients via email</span>
+          )}
+        </p>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {/* Sidebar Controls */}
         <div className="md:col-span-1 space-y-6">
@@ -276,7 +439,7 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
             <h3 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wider">Available Fields</h3>
             <div className="space-y-2">
               {AVAILABLE_FIELDS.map(field => {
-                const isPlaced = mapping.some(m => m.fieldId === field.id);
+                const isPlaced = currentMapping.some(m => m.fieldId === field.id);
                 const isSelected = selectedFieldId === field.id;
                 
                 return (
@@ -305,11 +468,11 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
             </p>
           </div>
 
-          {mapping.length > 0 && (
+          {currentMapping.length > 0 && (
             <div className="bg-gray-700/50 p-4 rounded-lg">
                <h3 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wider">Placed Fields</h3>
                <ul className="space-y-2">
-                 {mapping.map((m, idx) => (
+                 {currentMapping.map((m, idx) => (
                    <li key={idx} className="flex justify-between items-center text-sm bg-gray-800 p-2 rounded">
                      <span>{getFieldName(m.fieldId)}</span>
                      <button onClick={() => removeField(m.fieldId)} className="text-red-400 hover:text-red-300">
@@ -324,12 +487,12 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
 
         {/* PDF Preview Area */}
         <div className="md:col-span-3 bg-gray-900 rounded-lg border border-dashed border-gray-700 min-h-[500px] flex items-center justify-center relative overflow-hidden" ref={containerRef}>
-          {!pdfData && !uploading ? (
+          {!activeConfig.pdfData && !uploading ? (
             <div className="text-center text-gray-500">
               <Upload size={48} className="mx-auto mb-4 opacity-50" />
-              <p>Upload a PDF Certificate Template to start</p>
+              <p>Upload a PDF Certificate Template for<br/><strong className="text-gray-400">{CERTIFICATE_TYPES.find(t => t.id === activeCertType)?.label}</strong></p>
             </div>
-          ) : uploading && !pdfData ? (
+          ) : uploading && !activeConfig.pdfData ? (
             <div className="text-center text-gray-400">
               <div className="animate-spin w-12 h-12 border-4 border-[#E23744] border-t-transparent rounded-full mx-auto mb-4"></div>
               <p>Uploading template...</p>
@@ -351,9 +514,9 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
               style={{ display: 'inline-block' }}
             >
                <Document
-                file={pdfData}
-                onLoadSuccess={({ numPages }) => {
-                  setNumPages(numPages);
+                file={activeConfig.pdfData}
+                onLoadSuccess={({ numPages: n }) => {
+                  setNumPages(n);
                   setPdfError(null);
                 }}
                 onLoadError={(error) => {
@@ -372,10 +535,10 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
               </Document>
               
               {/* Markers Overlay */}
-              {mapping.map((m) => (
+              {currentMapping.map((m) => (
                 <div
                   key={m.fieldId}
-                  className="absolute transform -translate-x-1/2 -translate-y-1/2 bg-[#E23744] text-white text-xs px-2 py-1 rounded shadow-lg pointer-events-none whitespace-nowrap z-10"
+                  className={`absolute transform -translate-x-1/2 -translate-y-1/2 text-white text-xs px-2 py-1 rounded shadow-lg pointer-events-none whitespace-nowrap z-10 ${colors.bg}`}
                   style={{
                     left: `${m.x * 100}%`,
                     top: `${m.y * 100}%`,
@@ -387,12 +550,92 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
               
               {/* Ghost Marker for current selection */}
               {selectedFieldId && (
-                <div className="absolute top-0 left-0 w-full h-full bg-[#E23744]/10 z-0 pointer-events-none border-2 border-[#E23744] border-dashed"></div>
+                <div className={`absolute top-0 left-0 w-full h-full bg-[#E23744]/10 z-0 pointer-events-none border-2 border-[#E23744] border-dashed`}></div>
               )}
             </div>
           )}
         </div>
       </div>
+
+      {/* Send Certificates Modal */}
+      {sendModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-gray-800 rounded-2xl p-6 w-full max-w-lg border border-gray-700 shadow-2xl">
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <Mail size={22} />
+              Send Certificates
+            </h3>
+
+            {/* Type Selector */}
+            <div className="mb-4">
+              <label className="text-sm text-gray-400 mb-2 block">Certificate Type</label>
+              <div className="grid grid-cols-2 gap-2">
+                {CERTIFICATE_TYPES.map(type => {
+                  const Icon = type.icon;
+                  const hasConfig = configs[type.id]?.templateUrl;
+                  return (
+                    <button
+                      key={type.id}
+                      onClick={() => setSendingType(type.id)}
+                      disabled={!hasConfig}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        sendingType === type.id
+                          ? `${typeColorClasses[type.id].bg} text-white`
+                          : hasConfig
+                          ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          : 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      <Icon size={16} />
+                      {type.label}
+                      {!hasConfig && <span className="text-xs text-gray-600 ml-auto">No template</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Info message */}
+            <div className="mb-4 text-sm text-gray-400 bg-gray-900 p-3 rounded-lg">
+              {sendingType === 'participation' ? (
+                <p>This will send participation certificates to <strong className="text-white">all checked-in attendees</strong>.</p>
+              ) : (
+                <p>Enter the email addresses of the prize recipients below.</p>
+              )}
+            </div>
+
+            {/* Email input for prize certificates */}
+            {['first_prize', 'second_prize', 'third_prize'].includes(sendingType) && (
+              <div className="mb-4">
+                <label className="text-sm text-gray-400 mb-2 block">Recipient Emails (comma or newline separated)</label>
+                <textarea
+                  className="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={4}
+                  placeholder={"winner@example.com\nrunnerup@example.com"}
+                  value={sendEmails}
+                  onChange={(e) => setSendEmails(e.target.value)}
+                />
+              </div>
+            )}
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setSendModalOpen(false); setSendEmails(''); }}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSendCertificates}
+                className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition-colors flex items-center gap-2"
+              >
+                <Send size={16} />
+                Send Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

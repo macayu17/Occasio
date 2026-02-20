@@ -10,6 +10,9 @@ const router = express.Router();
 
 // Lazy load certificate service to avoid startup errors if pdf-lib isn't installed
 let generateCertificate = null;
+let generateTypedCertificate = null;
+let CERTIFICATE_TYPES = null;
+let CERTIFICATE_TYPE_LABELS = null;
 let sendCertificateEmail = null;
 
 const loadCertificateServices = async () => {
@@ -17,6 +20,9 @@ const loadCertificateServices = async () => {
     try {
       const certService = await import('../services/certificate.service.js');
       generateCertificate = certService.generateCertificate;
+      generateTypedCertificate = certService.generateTypedCertificate;
+      CERTIFICATE_TYPES = certService.CERTIFICATE_TYPES;
+      CERTIFICATE_TYPE_LABELS = certService.CERTIFICATE_TYPE_LABELS;
       const emailService = await import('../services/email.service.js');
       sendCertificateEmail = emailService.sendCertificateEmail;
     } catch (error) {
@@ -1297,7 +1303,7 @@ router.post('/events/:id/certificates/test', async (req, res) => {
 
   try {
     const { id } = req.params;
-    const { templateUrl, mapping } = req.body;
+    const { templateUrl, mapping, certificateType } = req.body;
 
     // Use provided template/mapping or fetch from event
     let finalTemplateUrl = templateUrl;
@@ -1310,20 +1316,40 @@ router.post('/events/:id/certificates/test', async (req, res) => {
 
       if (!event) return res.status(404).json({ error: 'Event not found' });
       
-      finalTemplateUrl = templateUrl || event.certificateTemplateUrl;
-      finalMapping = mapping || event.certificateMapping;
+      // If a specific certificate type is requested, look in certificateConfigs
+      if (certificateType && event.certificateConfigs) {
+        const configs = event.certificateConfigs;
+        const config = configs[certificateType];
+        if (config) {
+          finalTemplateUrl = templateUrl || config.templateUrl;
+          finalMapping = mapping || config.mapping;
+        }
+      }
+      
+      // Fallback to legacy fields
+      if (!finalTemplateUrl) {
+        finalTemplateUrl = templateUrl || event.certificateTemplateUrl;
+      }
+      if (!finalMapping) {
+        finalMapping = mapping || event.certificateMapping;
+      }
     }
 
     if (!finalTemplateUrl) {
-      return res.status(400).json({ error: 'No template URL provided' });
+      return res.status(400).json({ error: 'No template URL provided. Please upload a PDF template first.' });
     }
 
     // Generate with sample data
+    const typeLabel = certificateType ? (CERTIFICATE_TYPE_LABELS[certificateType] || certificateType) : 'Participation';
     const sampleData = {
       userName: 'John Doe',
       eventName: 'Sample Event Name',
       date: new Date().toDateString(),
-      qrCode: 'TEST-QR-12345'
+      qrCode: 'TEST-QR-12345',
+      certificateType: typeLabel,
+      rank: certificateType === 'first_prize' ? '1st Place' : 
+            certificateType === 'second_prize' ? '2nd Place' : 
+            certificateType === 'third_prize' ? '3rd Place' : ''
     };
 
     const pdfBytes = await generateCertificate(finalTemplateUrl, finalMapping || [], sampleData);
@@ -1339,7 +1365,89 @@ router.post('/events/:id/certificates/test', async (req, res) => {
   }
 });
 
-// Send Certificates to checked-in users
+// Save certificate config for a specific type
+router.put('/events/:id/certificates/config', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { certificateType, templateUrl, mapping, enabled } = req.body;
+
+    const access = await checkEventAccess(req.user, id, ['MANAGER', 'SUPER_MANAGER']);
+    if (!access.hasAccess) {
+      return res.status(403).json({ error: access.error || 'Not authorized' });
+    }
+
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    const configs = event.certificateConfigs || {};
+    configs[certificateType] = {
+      templateUrl: templateUrl || configs[certificateType]?.templateUrl,
+      mapping: mapping || configs[certificateType]?.mapping || [],
+      enabled: enabled !== undefined ? enabled : true,
+    };
+
+    // Also set legacy fields if this is the participation certificate
+    const updateData = {
+      certificateConfigs: configs,
+      certificateEnabled: true,
+    };
+
+    if (certificateType === 'participation') {
+      updateData.certificateTemplateUrl = configs[certificateType].templateUrl;
+      updateData.certificateMapping = configs[certificateType].mapping;
+    }
+
+    const updated = await prisma.event.update({
+      where: { id },
+      data: updateData,
+    });
+
+    res.json({ success: true, certificateConfigs: updated.certificateConfigs });
+  } catch (error) {
+    console.error('Save certificate config error:', error);
+    res.status(500).json({ error: 'Failed to save certificate config' });
+  }
+});
+
+// Get certificate configs for an event
+router.get('/events/:id/certificates/config', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const event = await prisma.event.findUnique({
+      where: { id },
+      select: {
+        certificateEnabled: true,
+        certificateTemplateUrl: true,
+        certificateMapping: true,
+        certificateConfigs: true,
+      }
+    });
+
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    // Build unified config - merge legacy fields into configs if needed
+    let configs = event.certificateConfigs || {};
+    
+    // If legacy fields exist but not in configs, add them as participation
+    if (event.certificateTemplateUrl && !configs.participation) {
+      configs.participation = {
+        templateUrl: event.certificateTemplateUrl,
+        mapping: event.certificateMapping || [],
+        enabled: event.certificateEnabled,
+      };
+    }
+
+    res.json({
+      certificateEnabled: event.certificateEnabled,
+      configs,
+    });
+  } catch (error) {
+    console.error('Get certificate config error:', error);
+    res.status(500).json({ error: 'Failed to get certificate config' });
+  }
+});
+
+// Send Certificates to checked-in users (supports typed certificates)
 router.post('/events/:id/certificates', async (req, res) => {
   try {
     await loadCertificateServices();
@@ -1349,82 +1457,107 @@ router.post('/events/:id/certificates', async (req, res) => {
 
   try {
     const { id } = req.params;
-    const { dryRun } = req.body; // if true, just return count
+    const { dryRun, certificateType = 'participation', recipientEmails } = req.body;
 
     const event = await prisma.event.findUnique({
       where: { id }
     });
 
     if (!event) return res.status(404).json({ error: 'Event not found' });
-    if (!event.certificateEnabled || !event.certificateTemplateUrl) {
-      return res.status(400).json({ error: 'Certificates not configured for this event' });
+
+    // Check if the requested certificate type has a config
+    const configs = event.certificateConfigs || {};
+    const typeConfig = configs[certificateType];
+    const hasLegacyConfig = certificateType === 'participation' && event.certificateTemplateUrl;
+
+    if (!typeConfig?.templateUrl && !hasLegacyConfig) {
+      return res.status(400).json({ error: `No template configured for certificate type: ${certificateType}` });
     }
 
-    // Find checked-in tickets
-    const tickets = await prisma.ticket.findMany({
-      where: {
-        checkedInAt: { not: null },
-        order: {
-          registration: {
-            eventId: id
-          }
-        }
-      },
-      include: {
-        order: {
-          include: {
-            registration: true
-          }
-        }
-      }
-    });
+    // For prize certificates, use recipientEmails; for participation, use checked-in attendees
+    let recipients = [];
 
-    if (tickets.length === 0) {
-      return res.json({ message: 'No checked-in attendees found', count: 0 });
+    if (recipientEmails && recipientEmails.length > 0) {
+      // Sending to specific recipients (prize certificates)
+      recipients = recipientEmails.map(email => ({ email, userName: email.split('@')[0] }));
+      
+      // Try to resolve names from users table
+      for (let i = 0; i < recipients.length; i++) {
+        const user = await prisma.user.findUnique({ where: { email: recipients[i].email } });
+        if (user) recipients[i].userName = user.name;
+      }
+    } else {
+      // Find checked-in tickets (participation certificates)
+      const tickets = await prisma.ticket.findMany({
+        where: {
+          checkedInAt: { not: null },
+          order: {
+            registration: {
+              eventId: id
+            }
+          }
+        },
+        include: {
+          order: {
+            include: {
+              registration: true
+            }
+          }
+        }
+      });
+
+      if (tickets.length === 0) {
+        return res.json({ message: 'No checked-in attendees found', count: 0 });
+      }
+
+      for (const ticket of tickets) {
+        const registration = ticket.order.registration;
+        const user = await prisma.user.findUnique({ where: { email: registration.userEmail } });
+        const userName = user ? user.name : registration.userEmail.split('@')[0];
+        recipients.push({ email: registration.userEmail, userName, ticketId: ticket.id });
+      }
     }
 
     if (dryRun) {
-      return res.json({ message: 'Dry run complete', count: tickets.length });
+      return res.json({ message: 'Dry run complete', count: recipients.length });
     }
 
     let sentCount = 0;
-    
-    // Process certificates
-    for (const ticket of tickets) {
-      const registration = ticket.order.registration;
-      // Use registration name if available, else fallback (schema says userEmail on registration, name might be in User model if we linked it, but registration has userEmail. Let's assume we need name.)
-      // Registration model doesn't have name field in the snippet I saw earlier? 
-      // Wait, let me check schema again. Registration has `userEmail`. User model has `name`.
-      // But Registration doesn't link to User directly? 
-      // "userEmail" map "user_email". "User" model has "email" @unique.
-      
-      const user = await prisma.user.findUnique({
-        where: { email: registration.userEmail }
-      });
-      
-      const userName = user ? user.name : registration.userEmail.split('@')[0];
-      const eventDate = event.startTime.toDateString();
+    const templateUrl = typeConfig?.templateUrl || event.certificateTemplateUrl;
+    const templateMapping = typeConfig?.mapping || event.certificateMapping || [];
+    const typeLabel = CERTIFICATE_TYPE_LABELS[certificateType] || 'Participation';
 
+    for (const recipient of recipients) {
       try {
         const pdfBytes = await generateCertificate(
-            event.certificateTemplateUrl,
-            event.certificateMapping,
-            {
-                userName,
-                eventName: event.title,
-                date: eventDate,
-                qrCode: ticket.id 
-            }
+          templateUrl,
+          templateMapping,
+          {
+            userName: recipient.userName,
+            eventName: event.title,
+            date: event.startTime.toDateString(),
+            qrCode: recipient.ticketId || recipient.email,
+            certificateType: typeLabel,
+            rank: certificateType === 'first_prize' ? '1st Place' :
+                  certificateType === 'second_prize' ? '2nd Place' :
+                  certificateType === 'third_prize' ? '3rd Place' : ''
+          }
         );
 
-        await sendCertificateEmail(registration.userEmail, userName, event.title, Buffer.from(pdfBytes));
+        await sendCertificateEmail(
+          recipient.email, 
+          recipient.userName, 
+          event.title, 
+          Buffer.from(pdfBytes),
+          typeLabel
+        );
         sentCount++;
       } catch (err) {
-        console.error(`Failed to send cert to ${registration.userEmail}`, err);
+        console.error(`Failed to send ${certificateType} cert to ${recipient.email}`, err);
       }
     }
 
-    res.json({ message: `Certificates sent to ${sentCount} attendees`, count: sentCount });
+    res.json({ message: `${typeLabel} certificates sent to ${sentCount} recipients`, count: sentCount });
 
   } catch (error) {
     console.error('Certificate generation error:', error);
