@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Download, CheckCircle, XCircle, Clock, Trash2 } from 'lucide-react';
+import { Download, CheckCircle, XCircle, Clock, Trash2, LogIn, RotateCcw } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -39,9 +39,30 @@ export default function RegistrationsPage() {
     try {
       await api.delete(`/admin/registrations/${regId}`);
       toast.success('Registration deleted successfully');
-      fetchData(); // Refresh the list
+      fetchData();
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to delete registration');
+    }
+  };
+
+  const handleCheckIn = async (ticketId, attendeeName) => {
+    try {
+      await api.post(`/admin/tickets/${ticketId}/checkin`);
+      toast.success(`${attendeeName || 'Attendee'} checked in!`);
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Check-in failed');
+    }
+  };
+
+  const handleResetCheckin = async (ticketId) => {
+    if (!window.confirm('Reset check-in status for this attendee?')) return;
+    try {
+      await api.post(`/admin/tickets/${ticketId}/reset-checkin`);
+      toast.success('Check-in reset');
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Reset failed');
     }
   };
 
@@ -195,13 +216,33 @@ export default function RegistrationsPage() {
                       )}
                     </td>
                     <td className="py-3 px-4">
-                      <button
-                        onClick={() => deleteRegistration(registration.id, registration.formResponse.name)}
-                        className="text-red-500 hover:text-red-400 hover:bg-red-500/10 p-2 rounded-lg transition-colors"
-                        title="Delete registration"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        {registration.orders[0]?.ticket && !registration.orders[0]?.ticket?.scannedAt && (
+                          <button
+                            onClick={() => handleCheckIn(registration.orders[0].ticket.id, registration.formResponse.name)}
+                            className="text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 p-2 rounded-lg transition-colors"
+                            title="Manual Check-in"
+                          >
+                            <LogIn size={18} />
+                          </button>
+                        )}
+                        {registration.orders[0]?.ticket?.scannedAt && (
+                          <button
+                            onClick={() => handleResetCheckin(registration.orders[0].ticket.id)}
+                            className="text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 p-2 rounded-lg transition-colors"
+                            title="Reset Check-in"
+                          >
+                            <RotateCcw size={18} />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => deleteRegistration(registration.id, registration.formResponse.name)}
+                          className="text-red-500 hover:text-red-400 hover:bg-red-500/10 p-2 rounded-lg transition-colors"
+                          title="Delete registration"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

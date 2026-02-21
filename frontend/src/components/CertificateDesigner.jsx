@@ -390,9 +390,9 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
   const colors = typeColorClasses[activeCertType] || typeColorClasses.participation;
 
   return (
-    <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-white">Certificate Designer</h2>
+    <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-lg font-bold text-white">Certificate Designer</h2>
         <div className="flex gap-2">
           {/* Send Certificates Button */}
           <button
@@ -442,7 +442,7 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
       </div>
 
       {/* Certificate Type Tabs */}
-      <div className="flex gap-2 mb-6 bg-gray-900/50 p-2 rounded-xl">
+      <div className="flex gap-2 mb-4 bg-gray-900/50 p-1.5 rounded-xl">
         {CERTIFICATE_TYPES.map(type => {
           const isActive = activeCertType === type.id;
           const hasConfig = configs[type.id]?.templateUrl;
@@ -451,7 +451,7 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
             <button
               key={type.id}
               onClick={() => { setActiveCertType(type.id); setSelectedFieldId(null); setPdfError(null); }}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                 isActive
                   ? `${typeColorClasses[type.id].bg} text-white shadow-lg`
                   : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
@@ -468,7 +468,7 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
       </div>
 
       {/* Type Description */}
-      <div className={`mb-4 px-4 py-2 rounded-lg ${colors.bgLight} border ${colors.border}`}>
+      <div className={`mb-3 px-3 py-1.5 rounded-lg ${colors.bgLight} border ${colors.border}`}>
         <p className={`text-sm ${colors.text}`}>
           {CERTIFICATE_TYPES.find(t => t.id === activeCertType)?.description}
           {['first_prize', 'second_prize', 'third_prize'].includes(activeCertType) && (
@@ -477,12 +477,12 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {/* Sidebar Controls */}
-        <div className="md:col-span-1 space-y-6">
-          <div className="bg-gray-700/50 p-4 rounded-lg">
-            <h3 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wider">Available Fields</h3>
-            <div className="space-y-2">
+        <div className="md:col-span-1 space-y-3">
+          <div className="bg-gray-700/50 p-3 rounded-lg">
+            <h3 className="text-xs font-semibold text-gray-300 mb-2 uppercase tracking-wider">Available Fields</h3>
+            <div className="space-y-1.5">
               {AVAILABLE_FIELDS.map(field => {
                 const isPlaced = currentMapping.some(m => m.fieldId === field.id);
                 const isSelected = selectedFieldId === field.id;
@@ -491,7 +491,7 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
                   <button
                     key={field.id}
                     onClick={() => setSelectedFieldId(field.id)}
-                    className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all ${
+                    className={`w-full flex items-center justify-between p-2 rounded-lg border transition-all text-sm ${
                       isSelected 
                         ? 'bg-[#E23744]/20 border-[#E23744] text-white shadow-[0_0_10px_rgba(226,55,68,0.3)]' 
                         : isPlaced
@@ -508,14 +508,14 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
                 );
               })}
             </div>
-            <p className="text-xs text-gray-400 mt-3">
-              Click a field above, then click on the PDF to place it.
+            <p className="text-xs text-gray-400 mt-2">
+              Select a field, then click on the PDF.
             </p>
           </div>
 
           {currentMapping.length > 0 && (
-            <div className="bg-gray-700/50 p-4 rounded-lg">
-               <h3 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wider">Placed Fields</h3>
+            <div className="bg-gray-700/50 p-3 rounded-lg">
+               <h3 className="text-xs font-semibold text-gray-300 mb-2 uppercase tracking-wider">Placed Fields</h3>
                <ul className="space-y-2">
                  {currentMapping.map((m, idx) => (
                    <li key={idx} className="flex justify-between items-center text-sm bg-gray-800 p-2 rounded">
@@ -531,11 +531,11 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
         </div>
 
         {/* PDF Preview Area */}
-        <div className="md:col-span-3 bg-gray-900 rounded-lg border border-dashed border-gray-700 min-h-[500px] flex items-center justify-center relative overflow-hidden" ref={containerRef}>
+        <div className="md:col-span-3 bg-gray-900 rounded-lg border border-dashed border-gray-700 min-h-[320px] flex items-center justify-center relative overflow-hidden" ref={containerRef}>
           {!activeConfig.pdfData && !uploading ? (
             <div className="text-center text-gray-500">
-              <Upload size={48} className="mx-auto mb-4 opacity-50" />
-              <p>Upload a PDF Certificate Template for<br/><strong className="text-gray-400">{CERTIFICATE_TYPES.find(t => t.id === activeCertType)?.label}</strong></p>
+              <Upload size={36} className="mx-auto mb-3 opacity-50" />
+              <p className="text-sm">Upload a PDF template for <strong className="text-gray-400">{CERTIFICATE_TYPES.find(t => t.id === activeCertType)?.label}</strong></p>
             </div>
           ) : uploading && !activeConfig.pdfData ? (
             <div className="text-center text-gray-400">

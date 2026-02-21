@@ -4,7 +4,7 @@ import {
     ArrowLeft, Users, UserCog, QrCode, BarChart3, Palette,
     Search, Check, X, RotateCcw, LogIn, LogOut,
     Clock, UserCheck, UserX, RefreshCw, MessageSquare, Trash2, PlusCircle,
-    Mic, Ticket, Bell, Award, Send
+    Mic, Ticket, Bell, Award, Send, XCircle, AlertTriangle
 } from 'lucide-react';
 import api from '../../utils/api';
 import { format } from 'date-fns';
@@ -263,13 +263,13 @@ function StatCard({ label, value, subtext, icon: Icon, color = 'gray' }) {
     };
 
     return (
-        <div className={`card p-6 ${colors[color]}`}>
-            <div className="flex items-center gap-3 mb-2">
-                <Icon size={20} className="opacity-60" />
-                <span className="text-sm text-gray-400">{label}</span>
+        <div className={`card p-4 ${colors[color]}`}>
+            <div className="flex items-center gap-2 mb-1">
+                <Icon size={18} className="opacity-60" />
+                <span className="text-xs text-gray-400">{label}</span>
             </div>
-            <p className="text-3xl font-bold">{value}</p>
-            {subtext && <p className="text-sm opacity-60 mt-1">{subtext}</p>}
+            <p className="text-2xl font-bold">{value}</p>
+            {subtext && <p className="text-xs opacity-60 mt-0.5">{subtext}</p>}
         </div>
     );
 }
@@ -277,38 +277,36 @@ function StatCard({ label, value, subtext, icon: Icon, color = 'gray' }) {
 // Check-in Tab Component
 function CheckinTab({ attendees, searchTerm, setSearchTerm, statusFilter, setStatusFilter, onCheckIn, onCheckOut, onReset, stats }) {
     return (
-        <div className="space-y-6">
-            {/* Quick Stats */}
-            {stats && (
-                <div className="flex gap-4 flex-wrap">
-                    <div className="bg-emerald-500/10 text-emerald-400 px-4 py-2 rounded-lg">
-                        <span className="font-bold">{stats.checkedIn}</span> checked in
-                    </div>
-                    <div className="bg-orange-500/10 text-orange-400 px-4 py-2 rounded-lg">
-                        <span className="font-bold">{stats.notCheckedIn}</span> pending
-                    </div>
-                    <div className="bg-blue-500/10 text-blue-400 px-4 py-2 rounded-lg">
-                        <span className="font-bold">{stats.currentlyInside}</span> inside now
-                    </div>
-                </div>
-            )}
-
-            {/* Search & Filter */}
-            <div className="flex gap-4 flex-wrap">
-                <div className="flex-1 min-w-[200px] relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+        <div className="space-y-3">
+            {/* Quick Stats + Search in one row */}
+            <div className="flex items-center gap-3 flex-wrap">
+                {stats && (
+                    <>
+                        <div className="bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded-lg text-sm">
+                            <span className="font-bold">{stats.checkedIn}</span> checked in
+                        </div>
+                        <div className="bg-orange-500/10 text-orange-400 px-3 py-1.5 rounded-lg text-sm">
+                            <span className="font-bold">{stats.notCheckedIn}</span> pending
+                        </div>
+                        <div className="bg-blue-500/10 text-blue-400 px-3 py-1.5 rounded-lg text-sm">
+                            <span className="font-bold">{stats.currentlyInside}</span> inside
+                        </div>
+                    </>
+                )}
+                <div className="flex-1 min-w-[200px] relative ml-auto">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
                     <input
                         type="text"
                         placeholder="Search by name or email..."
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
-                        className="input pl-10"
+                        className="input pl-9 py-1.5 text-sm"
                     />
                 </div>
                 <select
                     value={statusFilter}
                     onChange={e => setStatusFilter(e.target.value)}
-                    className="input w-auto"
+                    className="input w-auto py-1.5 text-sm"
                 >
                     <option value="all">All</option>
                     <option value="not-checked-in">Not Checked In</option>
@@ -318,48 +316,60 @@ function CheckinTab({ attendees, searchTerm, setSearchTerm, statusFilter, setSta
             </div>
 
             {/* Attendee List */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
                 {attendees.length === 0 ? (
-                    <p className="text-gray-400 text-center py-8">No attendees found</p>
+                    <p className="text-gray-400 text-center py-6">No attendees found</p>
                 ) : (
                     attendees.map(attendee => (
-                        <div key={attendee.id} className="card flex items-center justify-between p-4">
-                            <div>
-                                <p className="font-medium text-white">{attendee.name}</p>
-                                <p className="text-sm text-gray-400">{attendee.email}</p>
-                                {attendee.checkedInAt && (
-                                    <p className="text-xs text-emerald-400 mt-1">
-                                        Checked in: {format(new Date(attendee.checkedInAt), 'MMM d, h:mm a')}
-                                    </p>
-                                )}
+                        <div key={attendee.id} className="card flex items-center justify-between px-4 py-2.5">
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                    <p className="font-medium text-white text-sm">{attendee.name}</p>
+                                    <span className="text-[10px] font-mono bg-white/10 text-gray-400 px-1.5 py-0.5 rounded">
+                                        {attendee.ticketShortId || attendee.ticketId?.substring(0, 8).toUpperCase()}
+                                    </span>
+                                    {attendee.bookedAt && (
+                                        <span className="text-[11px] text-gray-500 ml-1">
+                                            <Clock size={10} className="inline mr-0.5" />
+                                            {format(new Date(attendee.bookedAt), 'MMM d, h:mm a')}
+                                        </span>
+                                    )}
+                                    {attendee.checkedInAt && (
+                                        <span className="text-[11px] text-emerald-400 ml-1">
+                                            <Check size={10} className="inline mr-0.5" />
+                                            {format(new Date(attendee.checkedInAt), 'MMM d, h:mm a')}
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-xs text-gray-400">{attendee.email}</p>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-1.5 items-center">
                                 {!attendee.checkedInAt ? (
                                     <button
                                         onClick={() => onCheckIn(attendee.ticketId)}
-                                        className="btn btn-primary px-4 py-2"
+                                        className="btn btn-primary px-3 py-1.5 text-sm"
                                     >
-                                        <LogIn size={16} />
+                                        <LogIn size={14} />
                                         Check In
                                     </button>
                                 ) : !attendee.checkedOutAt ? (
                                     <button
                                         onClick={() => onCheckOut(attendee.ticketId)}
-                                        className="btn btn-secondary px-4 py-2"
+                                        className="btn btn-secondary px-3 py-1.5 text-sm"
                                     >
-                                        <LogOut size={16} />
+                                        <LogOut size={14} />
                                         Check Out
                                     </button>
                                 ) : (
-                                    <span className="badge badge-neutral">Completed</span>
+                                    <span className="badge badge-neutral text-xs">Done</span>
                                 )}
                                 {attendee.checkedInAt && (
                                     <button
                                         onClick={() => onReset(attendee.ticketId)}
-                                        className="btn btn-ghost px-2"
+                                        className="btn btn-ghost px-1.5"
                                         title="Reset"
                                     >
-                                        <RotateCcw size={16} />
+                                        <RotateCcw size={14} />
                                     </button>
                                 )}
                             </div>
@@ -374,7 +384,7 @@ function CheckinTab({ attendees, searchTerm, setSearchTerm, statusFilter, setSta
 // Attendees Tab Component
 function AttendeesTab({ attendees, searchTerm, setSearchTerm, statusFilter, setStatusFilter }) {
     return (
-        <div className="space-y-4">
+        <div className="space-y-3">
             {/* Search & Filter */}
             <div className="flex gap-4 flex-wrap">
                 <div className="flex-1 min-w-[200px] relative">
@@ -403,18 +413,18 @@ function AttendeesTab({ attendees, searchTerm, setSearchTerm, statusFilter, setS
                 <table className="w-full">
                     <thead>
                         <tr className="border-b border-white/10 text-left">
-                            <th className="p-4 text-sm font-medium text-gray-400">Name</th>
-                            <th className="p-4 text-sm font-medium text-gray-400">Email</th>
-                            <th className="p-4 text-sm font-medium text-gray-400">Status</th>
-                            <th className="p-4 text-sm font-medium text-gray-400">Check-in Time</th>
+                            <th className="px-4 py-2 text-xs font-medium text-gray-400">Name</th>
+                            <th className="px-4 py-2 text-xs font-medium text-gray-400">Email</th>
+                            <th className="px-4 py-2 text-xs font-medium text-gray-400">Status</th>
+                            <th className="px-4 py-2 text-xs font-medium text-gray-400">Check-in Time</th>
                         </tr>
                     </thead>
                     <tbody>
                         {attendees.map(a => (
                             <tr key={a.id} className="border-b border-white/5 hover:bg-white/5">
-                                <td className="p-4 text-white">{a.name}</td>
-                                <td className="p-4 text-gray-400">{a.email}</td>
-                                <td className="p-4">
+                                <td className="px-4 py-2 text-white text-sm">{a.name}</td>
+                                <td className="px-4 py-2 text-gray-400 text-sm">{a.email}</td>
+                                <td className="px-4 py-2">
                                     {a.checkedInAt ? (
                                         a.checkedOutAt ? (
                                             <span className="badge badge-neutral">Left</span>
@@ -425,7 +435,7 @@ function AttendeesTab({ attendees, searchTerm, setSearchTerm, statusFilter, setS
                                         <span className="badge badge-warning">Pending</span>
                                     )}
                                 </td>
-                                <td className="p-4 text-gray-400 text-sm">
+                                <td className="px-4 py-2 text-gray-400 text-sm">
                                     {a.checkedInAt ? format(new Date(a.checkedInAt), 'MMM d, h:mm a') : '-'}
                                 </td>
                             </tr>
@@ -1407,14 +1417,18 @@ function CertificatesTab({ eventId, event }) {
     const [sending, setSending] = useState(false);
     const [dryRunLoading, setDryRunLoading] = useState(false);
     const [stats, setStats] = useState(null);
+    const [sendResult, setSendResult] = useState(null);
     const [previewBlobUrl, setPreviewBlobUrl] = useState(null);
+    const [previewError, setPreviewError] = useState(null);
+    const [previewLoading, setPreviewLoading] = useState(false);
 
-    // Load preview via authenticated API call (iframe can't pass auth headers)
-    useEffect(() => {
+    const loadPreview = () => {
         const configs = event?.certificateConfigs || {};
         const hasTemplate = configs?.participation?.templateUrl || event?.certificateTemplateUrl;
         if (!hasTemplate) return;
 
+        setPreviewError(null);
+        setPreviewLoading(true);
         let blobUrl = null;
         api.get(`/admin/events/${eventId}/certificates/template?type=participation`, { responseType: 'blob' })
             .then(res => {
@@ -1423,8 +1437,19 @@ function CertificatesTab({ eventId, event }) {
             })
             .catch(err => {
                 console.error('Failed to load certificate preview:', err);
-            });
+                const msg = err.response?.data?.error
+                    || (err.response?.status === 401 ? 'Template authentication failed — try re-uploading the certificate template'
+                    : 'Could not load certificate preview');
+                setPreviewError(msg);
+            })
+            .finally(() => setPreviewLoading(false));
 
+        return blobUrl;
+    };
+
+    // Load preview via authenticated API call (iframe can't pass auth headers)
+    useEffect(() => {
+        const blobUrl = loadPreview();
         return () => { if (blobUrl) URL.revokeObjectURL(blobUrl); };
     }, [eventId, event?.certificateTemplateUrl]);
 
@@ -1433,7 +1458,7 @@ function CertificatesTab({ eventId, event }) {
         
         try {
             if (dryRun) setDryRunLoading(true);
-            else setSending(true);
+            else { setSending(true); setSendResult(null); }
 
             const res = await api.post(`/admin/events/${eventId}/certificates`, { dryRun });
             
@@ -1441,10 +1466,17 @@ function CertificatesTab({ eventId, event }) {
                 setStats(res.data);
                 toast.success(`Found ${res.data.count} recipients`);
             } else {
-                toast.success(res.data.message);
+                setSendResult(res.data);
+                if (res.data.sent > 0) {
+                    toast.success(`${res.data.sent} certificate(s) sent successfully`);
+                } else {
+                    toast.error(res.data.message || 'No certificates were sent');
+                }
             }
         } catch (error) {
-            toast.error(error.response?.data?.error || 'Failed to send certificates');
+            const errData = error.response?.data;
+            toast.error(errData?.error || 'Failed to send certificates');
+            if (errData) setSendResult(errData);
         } finally {
             if (dryRun) setDryRunLoading(false);
             else setSending(false);
@@ -1459,12 +1491,11 @@ function CertificatesTab({ eventId, event }) {
 
     if (!hasAnyConfig) {
       return (
-        <div className="glass-card p-12 text-center">
-            <Award className="mx-auto mb-4 text-gray-500" size={64} />
-            <h3 className="text-xl font-bold text-white mb-2">Certificates Not Configured</h3>
-            <p className="text-gray-400 mb-6 max-w-md mx-auto">
-                You haven't set up the certificate template for this event yet.
-                Go to the Edit Event page to upload a template and map fields.
+        <div className="glass-card p-8 text-center">
+            <Award className="mx-auto mb-3 text-gray-500" size={48} />
+            <h3 className="text-lg font-bold text-white mb-1.5">Certificates Not Configured</h3>
+            <p className="text-gray-400 mb-4 max-w-md mx-auto text-sm">
+                Upload a template and map fields on the Edit Event page.
             </p>
             <Link to={`/admin/events/${eventId}/edit`} className="btn btn-primary">
                 Configure Certificate
@@ -1478,51 +1509,62 @@ function CertificatesTab({ eventId, event }) {
     const hasTemplate = configs?.participation?.templateUrl || event.certificateTemplateUrl;
 
     return (
-        <div className="space-y-6">
-            <div className="glass-card p-6">
-                <h2 className="text-xl font-bold text-white mb-4">Certificate Dashboard</h2>
+        <div className="space-y-4">
+            <div className="glass-card p-5">
+                <h2 className="text-lg font-bold text-white mb-3">Certificate Dashboard</h2>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
-                        <h3 className="text-sm font-semibold text-gray-400 mb-2 uppercase">Preview</h3>
-                        <div className="relative aspect-[1.414] bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-5">
+                    <div className="md:col-span-3">
+                        <h3 className="text-xs font-semibold text-gray-400 mb-1.5 uppercase">Preview</h3>
+                        <div className="relative bg-gray-800 rounded-lg overflow-hidden border border-gray-700" style={{ height: '360px' }}>
                              {previewBlobUrl ? (
                                 <iframe 
                                     src={previewBlobUrl} 
                                     className="w-full h-full"
                                     title="Certificate Preview"
                                 />
-                             ) : hasTemplate ? (
-                                <div className="flex items-center justify-center h-full text-gray-400">Loading preview...</div>
+                             ) : previewError ? (
+                                <div className="flex flex-col items-center justify-center h-full text-center px-4 gap-3">
+                                    <XCircle className="text-red-400" size={36} />
+                                    <p className="text-red-300 text-sm">{previewError}</p>
+                                    <button onClick={loadPreview} className="text-xs text-blue-400 hover:text-blue-300 underline">
+                                        Retry
+                                    </button>
+                                </div>
+                             ) : previewLoading || hasTemplate ? (
+                                <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-2">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-blue-400 border-r-2 border-blue-400/30"></div>
+                                    <span className="text-sm">Loading preview...</span>
+                                </div>
                              ) : (
                                 <div className="flex items-center justify-center h-full text-gray-500">No Preview</div>
                              )}
                         </div>
                     </div>
 
-                    <div className="flex flex-col justify-center gap-4">
+                    <div className="md:col-span-2 flex flex-col justify-center gap-3">
                         <div className="p-4 bg-white/5 rounded-lg border border-white/10">
-                            <h4 className="font-semibold text-white mb-2">Ready to Send</h4>
-                            <p className="text-gray-400 text-sm mb-4">
+                            <h4 className="font-semibold text-white mb-1.5 text-sm">Ready to Send</h4>
+                            <p className="text-gray-400 text-xs mb-3">
                                 Certificates will be generated and emailed to all attendees who have checked in.
                             </p>
                             
-                            <div className="flex gap-4">
+                            <div className="flex gap-3">
                                 <button 
                                     onClick={() => handleSend(true)}
                                     disabled={dryRunLoading || sending}
-                                    className="btn btn-ghost border border-gray-600"
+                                    className="btn btn-ghost border border-gray-600 text-sm px-3 py-1.5"
                                 >
-                                    {dryRunLoading ? 'Checking...' : 'Check Recipient Count'}
+                                    {dryRunLoading ? 'Checking...' : 'Check Count'}
                                 </button>
                                 
                                 <button 
                                     onClick={() => handleSend(false)}
                                     disabled={sending}
-                                    className="btn btn-primary flex-1"
+                                    className="btn btn-primary flex-1 text-sm px-3 py-1.5"
                                 >
-                                    <Send size={18} className={sending ? 'animate-spin' : ''} />
-                                    {sending ? 'Sending...' : 'Send Certificates Now'}
+                                    <Send size={16} className={sending ? 'animate-spin' : ''} />
+                                    {sending ? 'Sending...' : 'Send Certificates'}
                                 </button>
                             </div>
                         </div>
@@ -1532,6 +1574,22 @@ function CertificatesTab({ eventId, event }) {
                                 <p className="text-blue-300">
                                     <strong>Dry Run Result:</strong> {stats.count} certificates will be sent.
                                 </p>
+                            </div>
+                        )}
+
+                        {sendResult && (
+                            <div className={`p-4 rounded-lg border ${sendResult.sent > 0 ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                                <p className={sendResult.sent > 0 ? 'text-green-300' : 'text-red-300'}>
+                                    <strong>Send Result:</strong> {sendResult.sent || 0} sent, {sendResult.failed || 0} failed
+                                    {sendResult.total ? ` out of ${sendResult.total} total` : ''}
+                                </p>
+                                {sendResult.errors && sendResult.errors.length > 0 && (
+                                    <div className="mt-2 text-sm text-red-400 max-h-32 overflow-y-auto">
+                                        {sendResult.errors.map((e, i) => (
+                                            <div key={i} className="truncate">{e.email}: {e.error || e.reason || 'Unknown error'}</div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
