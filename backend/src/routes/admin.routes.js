@@ -1,10 +1,17 @@
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { body, validationResult } from 'express-validator';
 import prisma from '../config/db.js';
 import { authenticate, requireOrganizer, checkEventAccess } from '../middleware/auth.middleware.js';
 import { upload, uploadPdf } from '../middleware/upload.middleware.js';
 import { uploadToS3 } from '../utils/s3.util.js';
-import { uploadToCloudinary, isCloudinaryConfigured } from '../utils/cloudinary.util.js';
+import { uploadToCloudinary, uploadPdfToCloudinary, uploadPublicPdfToCloudinary, isCloudinaryConfigured, signCloudinaryRawUrl } from '../utils/cloudinary.util.js';
+import { getR2ObjectBuffer, isR2Configured, isR2TemplateRef, uploadBufferToR2 } from '../utils/r2.util.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
@@ -43,17 +50,39 @@ router.post('/upload', uploadPdf.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
+    const ext = path.extname(req.file.originalname || '.pdf') || '.pdf';
+    const safeExt = ext.toLowerCase() === '.pdf' ? '.pdf' : '.pdf';
+    const generatedFileName = `certificate-${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt}`;
+    let fileBuffer = req.file.buffer;
+    if (!fileBuffer && req.file.path && fs.existsSync(req.file.path)) {
+      fileBuffer = fs.readFileSync(req.file.path);
+    }
+
+    if (!fileBuffer) {
+      return res.status(500).json({ error: 'Uploaded file data is missing' });
+    }
+
     let fileUrl;
-    
-    // Try Cloudinary first
-    if (isCloudinaryConfigured()) {
-      const result = await uploadToCloudinary(req.file.buffer || req.file.path, 'events/certificates');
-      fileUrl = result.secure_url;
-    } else if (process.env.NODE_ENV === 'production' && process.env.AWS_ACCESS_KEY_ID) {
-      fileUrl = await uploadToS3(req.file);
+    if (isR2Configured()) {
+      const key = `certificates/templates/${generatedFileName}`;
+      fileUrl = await uploadBufferToR2({
+        buffer: fileBuffer,
+        key,
+        contentType: 'application/pdf',
+      });
     } else {
-      // Fallback to local
-      fileUrl = `/uploads/${req.file.filename}`;
+      const certificateUploadDir = path.join(__dirname, '../../uploads');
+      if (!fs.existsSync(certificateUploadDir)) {
+        fs.mkdirSync(certificateUploadDir, { recursive: true });
+      }
+
+      const destinationPath = path.join(certificateUploadDir, generatedFileName);
+      fs.writeFileSync(destinationPath, fileBuffer);
+      fileUrl = `/uploads/${generatedFileName}`;
+    }
+
+    if (req.file.path && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
     }
 
     res.json({ url: fileUrl });
@@ -374,7 +403,11 @@ router.get('/events/:id/analytics', async (req, res) => {
     const { id } = req.params;
 
     const event = await prisma.event.findUnique({
-      where: { id }
+      where: { id },
+      include: {
+        ticketTiers: { orderBy: { sortOrder: 'asc' } },
+        discounts: true
+      }
     });
 
     if (!event) {
@@ -385,39 +418,43 @@ router.get('/events/:id/analytics', async (req, res) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    // Get all registrations
+    // Get all registrations with orders, tickets, and discount info
     const registrations = await prisma.registration.findMany({
       where: { eventId: id },
       include: {
         orders: {
           include: {
-            ticket: true
+            ticket: true,
+            discountCode: true
           }
         }
-      }
+      },
+      orderBy: { createdAt: 'desc' }
     });
 
     const totalRegistrations = registrations.length;
     const paidRegistrations = registrations.filter(r => r.status === 'PAID').length;
     const pendingRegistrations = registrations.filter(r => r.status === 'PENDING').length;
     const failedRegistrations = registrations.filter(r => r.status === 'FAILED').length;
+    const cancelledRegistrations = registrations.filter(r => r.status === 'CANCELLED').length;
 
     // Revenue calculation
     const paidOrders = registrations.flatMap(r => r.orders.filter(o => o.status === 'PAID'));
-    const totalRevenue = paidOrders.reduce((sum, order) => sum + order.totalAmount, 0) / 100;
+    const totalRevenue = paidOrders.reduce((sum, order) => sum + (order.amountCents || order.totalAmount || 0), 0) / 100;
     const averageOrderValue = paidOrders.length > 0 ? totalRevenue / paidOrders.length : 0;
 
     // Check-in stats
     const tickets = registrations.flatMap(r => r.orders.flatMap(o => o.ticket ? [o.ticket] : []));
-    const checkedInCount = tickets.filter(t => t.scannedAt).length;
+    const checkedInCount = tickets.filter(t => t.scannedAt || t.checkedInAt).length;
     const notCheckedInCount = tickets.length - checkedInCount;
     const checkInRate = tickets.length > 0 ? (checkedInCount / tickets.length) * 100 : 0;
 
-    // Daily registrations (last 30 days likely better, but stick to 7 for UI)
+    // ---- DAILY REGISTRATIONS (last 30 days) ----
     const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(today.getDate() - 30);
     const sevenDaysAgo = new Date(today);
     sevenDaysAgo.setDate(today.getDate() - 7);
-
     const fourteenDaysAgo = new Date(today);
     fourteenDaysAgo.setDate(today.getDate() - 14);
 
@@ -426,7 +463,6 @@ router.get('/events/:id/analytics', async (req, res) => {
       const d = new Date(r.createdAt);
       return d >= sevenDaysAgo && d <= today;
     }).length;
-
     const previousWeekRegs = registrations.filter(r => {
       const d = new Date(r.createdAt);
       return d >= fourteenDaysAgo && d < sevenDaysAgo;
@@ -436,50 +472,170 @@ router.get('/events/:id/analytics', async (req, res) => {
     if (previousWeekRegs > 0) {
       registrationGrowth = ((currentWeekRegs - previousWeekRegs) / previousWeekRegs) * 100;
     } else if (currentWeekRegs > 0) {
-      registrationGrowth = 100; // 0 to something is 100% growth effectively
+      registrationGrowth = 100;
     }
 
-    const recentRegs = registrations.filter(r => new Date(r.createdAt) >= sevenDaysAgo);
+    // Build daily map for last 30 days
     const dailyMap = {};
-    // ... rest of dailyMap logic
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 30; i++) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       const dateStr = date.toISOString().split('T')[0];
       dailyMap[dateStr] = 0;
     }
-    recentRegs.forEach(r => {
+    registrations.forEach(r => {
       const dateStr = new Date(r.createdAt).toISOString().split('T')[0];
       if (dailyMap[dateStr] !== undefined) dailyMap[dateStr]++;
     });
     const dailyRegistrations = Object.entries(dailyMap).map(([date, count]) => ({ date, count })).reverse();
 
-    // Recent registrations
+    // ---- DAILY REVENUE ----
+    const revenueMap = {};
+    for (let i = 0; i < 30; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      revenueMap[date.toISOString().split('T')[0]] = 0;
+    }
+    paidOrders.forEach(o => {
+      const dateStr = new Date(o.createdAt).toISOString().split('T')[0];
+      if (revenueMap[dateStr] !== undefined) {
+        revenueMap[dateStr] += (o.amountCents || o.totalAmount || 0) / 100;
+      }
+    });
+    const dailyRevenue = Object.entries(revenueMap).map(([date, amount]) => ({ date, amount: Number(amount.toFixed(2)) })).reverse();
+
+    // ---- HOURLY DISTRIBUTION (all-time) ----
+    const hourlyMap = Array(24).fill(0);
+    registrations.forEach(r => {
+      const hour = new Date(r.createdAt).getHours();
+      hourlyMap[hour]++;
+    });
+    const hourlyDistribution = hourlyMap.map((count, hour) => ({ hour, count }));
+    const peakHour = hourlyDistribution.reduce((max, h) => h.count > max.count ? h : max, { hour: 0, count: 0 });
+
+    // ---- TICKET TIER BREAKDOWN ----
+    const tierBreakdown = event.ticketTiers.map(tier => {
+      const capacity = tier.capacity || null;
+      return {
+        id: tier.id,
+        name: tier.name,
+        priceCents: tier.priceCents,
+        capacity,
+        soldCount: tier.soldCount,
+        revenue: (tier.soldCount * tier.priceCents) / 100,
+        fillRate: capacity ? ((tier.soldCount / capacity) * 100) : null
+      };
+    });
+
+    // ---- DISCOUNT CODE USAGE ----
+    const discountUsage = event.discounts.map(d => ({
+      code: d.code,
+      type: d.type,
+      amount: d.amount,
+      usedCount: d.usedCount,
+      maxUses: d.maxUses,
+      isActive: d.isActive
+    }));
+    const totalDiscountUses = discountUsage.reduce((s, d) => s + d.usedCount, 0);
+    // Estimate discount savings from orders that used a code
+    const discountedOrders = paidOrders.filter(o => o.discountCodeId);
+    const discountSavings = discountedOrders.reduce((sum, o) => {
+      const disc = o.discountCode;
+      if (!disc) return sum;
+      if (disc.type === 'PERCENTAGE') {
+        return sum + ((o.amountCents || o.totalAmount || 0) * disc.amount / (100 - disc.amount)) / 100;
+      }
+      return sum + disc.amount / 100;
+    }, 0);
+
+    // ---- CHECK-IN TIMELINE ----
+    const checkinTimeline = [];
+    const checkedInTickets = tickets.filter(t => t.scannedAt || t.checkedInAt);
+    if (checkedInTickets.length > 0) {
+      const ciMap = {};
+      checkedInTickets.forEach(t => {
+        const ts = t.checkedInAt || t.scannedAt;
+        const key = new Date(ts).toISOString().slice(0, 16); // minute resolution
+        ciMap[key] = (ciMap[key] || 0) + 1;
+      });
+      let cumulative = 0;
+      Object.entries(ciMap).sort().forEach(([time, count]) => {
+        cumulative += count;
+        checkinTimeline.push({ time, count, cumulative });
+      });
+    }
+
+    // ---- REGISTRATION SOURCE / PAYMENT PROVIDER BREAKDOWN ----
+    const providerBreakdown = {};
+    paidOrders.forEach(o => {
+      const provider = o.provider || 'UNKNOWN';
+      if (!providerBreakdown[provider]) providerBreakdown[provider] = { count: 0, revenue: 0 };
+      providerBreakdown[provider].count++;
+      providerBreakdown[provider].revenue += (o.amountCents || o.totalAmount || 0) / 100;
+    });
+
+    // Recent registrations (top 15)
     const recentRegistrations = registrations
-      .slice(0, 10)
-      .map(r => ({
-        attendeeName: r.formResponse.name || 'N/A',
-        email: r.userEmail,
-        status: r.status,
-        createdAt: r.createdAt
-      }));
+      .slice(0, 15)
+      .map(r => {
+        const ticket = r.orders?.[0]?.ticket;
+        return {
+          attendeeName: r.formResponse?.name || 'N/A',
+          email: r.userEmail,
+          status: r.status,
+          createdAt: r.createdAt,
+          ticketId: ticket ? ticket.id.substring(0, 8).toUpperCase() : null,
+          checkedIn: ticket ? !!(ticket.scannedAt || ticket.checkedInAt) : false,
+          amount: r.orders?.find(o => o.status === 'PAID')?.amountCents
+            ? (r.orders.find(o => o.status === 'PAID').amountCents / 100)
+            : null
+        };
+      });
 
     // Conversion rate
     const conversionRate = totalRegistrations > 0 ? (paidRegistrations / totalRegistrations) * 100 : 0;
 
+    // ---- SUMMARY STATS ----
+    const totalTickets = tickets.length;
+    const capacityUsed = event.capacity > 0 ? ((totalRegistrations / event.capacity) * 100) : null;
+
     res.json({
+      // Core stats
       totalRegistrations,
       paidRegistrations,
       pendingRegistrations,
       failedRegistrations,
+      cancelledRegistrations,
       totalRevenue,
       averageOrderValue,
       conversionRate,
       registrationGrowth: Number(registrationGrowth.toFixed(1)),
+
+      // Capacity
+      eventCapacity: event.capacity,
+      capacityUsed: capacityUsed !== null ? Number(capacityUsed.toFixed(1)) : null,
+
+      // Check-in
+      totalTickets,
       checkedInCount,
       notCheckedInCount,
       checkInRate,
+      checkinTimeline,
+
+      // Time series
       dailyRegistrations,
+      dailyRevenue,
+      hourlyDistribution,
+      peakHour: { hour: peakHour.hour, count: peakHour.count },
+
+      // Breakdowns
+      tierBreakdown,
+      discountUsage,
+      totalDiscountUses,
+      discountSavings: Number(discountSavings.toFixed(2)),
+      providerBreakdown,
+
+      // Recent
       recentRegistrations
     });
   } catch (error) {
@@ -781,6 +937,7 @@ router.get('/events/:id/attendees', async (req, res) => {
         .map(order => ({
           id: order.ticket.id,
           ticketId: order.ticket.id,
+          ticketShortId: order.ticket.id.substring(0, 8).toUpperCase(),
           orderId: order.id,
           name: reg.formResponse?.name || 'N/A',
           email: reg.userEmail,
@@ -789,6 +946,7 @@ router.get('/events/:id/attendees', async (req, res) => {
           checkedOutAt: order.ticket.checkedOutAt,
           checkedInBy: order.ticket.checkedInBy,
           issuedAt: order.ticket.issuedAt,
+          bookedAt: reg.createdAt,
           revoked: order.ticket.revoked
         }))
     );
@@ -1305,6 +1463,14 @@ router.post('/events/:id/certificates/test', async (req, res) => {
     const { id } = req.params;
     const { templateUrl, mapping, certificateType } = req.body;
 
+    console.log('Test certificate request:', { 
+      eventId: id, 
+      certificateType,
+      hasTemplateUrl: !!templateUrl,
+      templateUrlType: templateUrl ? (templateUrl.startsWith('data:') ? 'data-url' : templateUrl.substring(0, 80)) : 'none',
+      mappingCount: mapping?.length || 0 
+    });
+
     // Use provided template/mapping or fetch from event
     let finalTemplateUrl = templateUrl;
     let finalMapping = mapping;
@@ -1321,22 +1487,22 @@ router.post('/events/:id/certificates/test', async (req, res) => {
         const configs = event.certificateConfigs;
         const config = configs[certificateType];
         if (config) {
-          finalTemplateUrl = templateUrl || config.templateUrl;
-          finalMapping = mapping || config.mapping;
+          finalTemplateUrl = finalTemplateUrl || config.templateUrl;
+          finalMapping = finalMapping || config.mapping;
         }
       }
       
       // Fallback to legacy fields
       if (!finalTemplateUrl) {
-        finalTemplateUrl = templateUrl || event.certificateTemplateUrl;
+        finalTemplateUrl = event.certificateTemplateUrl;
       }
       if (!finalMapping) {
-        finalMapping = mapping || event.certificateMapping;
+        finalMapping = event.certificateMapping;
       }
     }
 
     if (!finalTemplateUrl) {
-      return res.status(400).json({ error: 'No template URL provided. Please upload a PDF template first.' });
+      return res.status(400).json({ error: 'No template URL provided. Please upload and save a PDF template first.' });
     }
 
     // Generate with sample data
@@ -1351,6 +1517,11 @@ router.post('/events/:id/certificates/test', async (req, res) => {
             certificateType === 'second_prize' ? '2nd Place' : 
             certificateType === 'third_prize' ? '3rd Place' : ''
     };
+
+    console.log('Generating test certificate with template type:', 
+      finalTemplateUrl.startsWith('data:') ? 'data-url' : finalTemplateUrl.substring(0, 80),
+      'mapping fields:', (finalMapping || []).map(m => m.fieldId).join(', ')
+    );
 
     const pdfBytes = await generateCertificate(finalTemplateUrl, finalMapping || [], sampleData);
 
@@ -1447,6 +1618,122 @@ router.get('/events/:id/certificates/config', async (req, res) => {
   }
 });
 
+// Proxy endpoint: serve certificate template PDF (avoids Cloudinary 401 for raw files)
+router.get('/events/:id/certificates/template', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { type = 'participation' } = req.query;
+
+    const event = await prisma.event.findUnique({
+      where: { id },
+      select: {
+        certificateTemplateUrl: true,
+        certificateConfigs: true,
+      }
+    });
+
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    // Find the template URL
+    const configs = event.certificateConfigs || {};
+    let templateUrl = configs[type]?.templateUrl || event.certificateTemplateUrl;
+
+    if (!templateUrl) {
+      return res.status(404).json({ error: 'No template configured' });
+    }
+
+    // Serve from R2 directly
+    if (isR2TemplateRef(templateUrl)) {
+      try {
+        const buffer = await getR2ObjectBuffer(templateUrl);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        return res.send(buffer);
+      } catch (r2Err) {
+        console.error('R2 fetch failed for template:', r2Err.message);
+        return res.status(500).json({ error: 'Failed to fetch template from storage' });
+      }
+    }
+
+    // For any HTTP URL (Cloudinary or otherwise), fetch with retries
+    if (templateUrl.startsWith('http')) {
+      let buffer = null;
+
+      // For Cloudinary URLs, use the dedicated download helper
+      if (templateUrl.includes('cloudinary.com')) {
+        try {
+          const { downloadCloudinaryBuffer } = await import('../utils/cloudinary.util.js');
+          buffer = await downloadCloudinaryBuffer(templateUrl);
+          if (buffer) console.log('Cloudinary download success:', buffer.length, 'bytes');
+        } catch (err) {
+          console.error('Cloudinary download error:', err.message);
+        }
+      }
+
+      // For non-Cloudinary URLs or if Cloudinary download failed, try direct fetch
+      if (!buffer) {
+        try {
+          const response = await fetch(templateUrl);
+          if (response.ok) {
+            buffer = Buffer.from(await response.arrayBuffer());
+          } else {
+            console.error('Template direct fetch failed:', response.status, response.statusText);
+          }
+        } catch (fetchErr) {
+          console.error('Template fetch error:', fetchErr.message);
+        }
+      }
+
+      if (!buffer) {
+        return res.status(502).json({ error: 'Failed to fetch template from remote source' });
+      }
+
+      // Auto-migrate to R2 for future reliability
+      if (isR2Configured() && !isR2TemplateRef(templateUrl)) {
+        try {
+          const key = `certificates/templates/migrated-${id}-${type}-${Date.now()}.pdf`;
+          const r2Url = await uploadBufferToR2({ buffer, key, contentType: 'application/pdf' });
+          // Update the event config to use R2 URL
+          if (configs[type]?.templateUrl) {
+            configs[type].templateUrl = r2Url;
+            await prisma.event.update({ where: { id }, data: { certificateConfigs: configs } });
+          }
+          if (event.certificateTemplateUrl === templateUrl) {
+            await prisma.event.update({ where: { id }, data: { certificateTemplateUrl: r2Url } });
+          }
+          console.log('Auto-migrated certificate template to R2:', r2Url);
+        } catch (migrateErr) {
+          console.error('Auto-migrate to R2 failed (non-fatal):', migrateErr.message);
+        }
+      }
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      return res.send(buffer);
+    }
+
+    // For local files, read from disk
+    if (!templateUrl.startsWith('http')) {
+      const localPath = templateUrl.startsWith('/uploads/')
+        ? path.join(__dirname, '../../', templateUrl)
+        : path.join(__dirname, '../../uploads/', templateUrl);
+      
+      if (!fs.existsSync(localPath)) {
+        return res.status(404).json({ error: 'Template file not found' });
+      }
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      return res.send(fs.readFileSync(localPath));
+    }
+
+    return res.status(400).json({ error: 'Unsupported template URL format' });
+  } catch (error) {
+    console.error('Template proxy error:', error);
+    res.status(500).json({ error: 'Failed to fetch template' });
+  }
+});
+
 // Send Certificates to checked-in users (supports typed certificates)
 router.post('/events/:id/certificates', async (req, res) => {
   try {
@@ -1474,6 +1761,36 @@ router.post('/events/:id/certificates', async (req, res) => {
       return res.status(400).json({ error: `No template configured for certificate type: ${certificateType}` });
     }
 
+    // Resolve the template URL (may need migration from Cloudinary to R2)
+    let resolvedTemplateUrl = typeConfig?.templateUrl || event.certificateTemplateUrl;
+
+    // If it's a Cloudinary URL, download via API and migrate to R2
+    if (resolvedTemplateUrl && resolvedTemplateUrl.includes('cloudinary.com')) {
+      try {
+        const { downloadCloudinaryBuffer } = await import('../utils/cloudinary.util.js');
+        const templateBuffer = await downloadCloudinaryBuffer(resolvedTemplateUrl);
+        
+        if (templateBuffer && isR2Configured()) {
+          const key = `certificates/templates/migrated-${id}-${certificateType}-${Date.now()}.pdf`;
+          const r2Url = await uploadBufferToR2({ buffer: templateBuffer, key, contentType: 'application/pdf' });
+          // Update event config
+          if (typeConfig?.templateUrl) {
+            configs[certificateType].templateUrl = r2Url;
+            await prisma.event.update({ where: { id }, data: { certificateConfigs: configs } });
+          }
+          if (event.certificateTemplateUrl === resolvedTemplateUrl) {
+            await prisma.event.update({ where: { id }, data: { certificateTemplateUrl: r2Url } });
+          }
+          resolvedTemplateUrl = r2Url;
+          console.log('Migrated certificate template to R2 before sending:', r2Url);
+        } else if (!templateBuffer) {
+          console.error('Cloudinary download returned null — certificate sending may fail');
+        }
+      } catch (migrateErr) {
+        console.error('Template migration failed (will try direct fetch):', migrateErr.message);
+      }
+    }
+
     // For prize certificates, use recipientEmails; for participation, use checked-in attendees
     let recipients = [];
 
@@ -1488,13 +1805,18 @@ router.post('/events/:id/certificates', async (req, res) => {
       }
     } else {
       // Find checked-in tickets (participation certificates)
+      // Check both checkedInAt (new) and scannedAt (legacy) for backward compatibility
       const tickets = await prisma.ticket.findMany({
         where: {
-          checkedInAt: { not: null },
+          OR: [
+            { checkedInAt: { not: null } },
+            { scannedAt: { not: null } }
+          ],
           order: {
             registration: {
               eventId: id
-            }
+            },
+            status: 'PAID'
           }
         },
         include: {
@@ -1513,7 +1835,7 @@ router.post('/events/:id/certificates', async (req, res) => {
       for (const ticket of tickets) {
         const registration = ticket.order.registration;
         const user = await prisma.user.findUnique({ where: { email: registration.userEmail } });
-        const userName = user ? user.name : registration.userEmail.split('@')[0];
+        const userName = user ? user.name : (registration.formResponse?.name || registration.userEmail.split('@')[0]);
         recipients.push({ email: registration.userEmail, userName, ticketId: ticket.id });
       }
     }
@@ -1523,14 +1845,14 @@ router.post('/events/:id/certificates', async (req, res) => {
     }
 
     let sentCount = 0;
-    const templateUrl = typeConfig?.templateUrl || event.certificateTemplateUrl;
+    const errors = [];
     const templateMapping = typeConfig?.mapping || event.certificateMapping || [];
     const typeLabel = CERTIFICATE_TYPE_LABELS[certificateType] || 'Participation';
 
     for (const recipient of recipients) {
       try {
         const pdfBytes = await generateCertificate(
-          templateUrl,
+          resolvedTemplateUrl,
           templateMapping,
           {
             userName: recipient.userName,
@@ -1553,15 +1875,22 @@ router.post('/events/:id/certificates', async (req, res) => {
         );
         sentCount++;
       } catch (err) {
-        console.error(`Failed to send ${certificateType} cert to ${recipient.email}`, err);
+        console.error(`Failed to send ${certificateType} cert to ${recipient.email}:`, err.message);
+        errors.push({ email: recipient.email, error: err.message });
       }
     }
 
-    res.json({ message: `${typeLabel} certificates sent to ${sentCount} recipients`, count: sentCount });
+    res.json({ 
+      message: `${typeLabel} certificates sent to ${sentCount} recipients`,
+      sent: sentCount,
+      failed: errors.length,
+      total: recipients.length,
+      errors: errors.length > 0 ? errors : undefined
+    });
 
   } catch (error) {
     console.error('Certificate generation error:', error);
-    res.status(500).json({ error: 'Failed to generate certificates' });
+    res.status(500).json({ error: 'Failed to generate certificates: ' + error.message });
   }
 });
 

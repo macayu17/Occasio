@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { isCloudinaryConfigured } from '../utils/cloudinary.util.js';
+import { isR2Configured } from '../utils/r2.util.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,7 +54,7 @@ const pdfFileFilter = (req, file, cb) => {
 // Use memory storage if Cloudinary is configured (for production)
 // Otherwise use disk storage (for local development)
 const getStorage = () => {
-  if (isCloudinaryConfigured() || (process.env.NODE_ENV === 'production' && process.env.AWS_ACCESS_KEY_ID)) {
+  if (isCloudinaryConfigured() || isR2Configured() || (process.env.NODE_ENV === 'production' && process.env.AWS_ACCESS_KEY_ID)) {
     return memoryStorage;
   }
   return diskStorage;

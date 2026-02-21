@@ -7,10 +7,63 @@ import http from 'http';
 import { fileURLToPath } from 'url';
 import prisma from '../config/db.js';
 import { generateQRPayload } from '../utils/qr.util.js';
-import { uploadPdfToCloudinary } from '../utils/cloudinary.util.js';
+import { isCloudinaryConfigured, uploadPdfToCloudinary } from '../utils/cloudinary.util.js';
+import { isR2Configured, uploadBufferToR2 } from '../utils/r2.util.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const parseQrPayloadSafe = (rawPayload) => {
+  if (!rawPayload || typeof rawPayload !== 'string') return null;
+  try {
+    return JSON.parse(rawPayload);
+  } catch {
+    return null;
+  }
+};
+
+const hasUsableQrPayload = (payload, ticket, order) => {
+  return Boolean(
+    payload &&
+    payload.ticketId === ticket.id &&
+    payload.orderId === order.id &&
+    payload.eventId === order.registration.event.id &&
+    payload.sig
+  );
+};
+
+async function ensureTicketWithQr(order) {
+  let ticket = await prisma.ticket.findUnique({
+    where: { orderId: order.id }
+  });
+
+  if (!ticket) {
+    ticket = await prisma.ticket.create({
+      data: {
+        orderId: order.id,
+        qrPayload: '{}',
+        validUntil: order.registration.event.endTime
+      }
+    });
+  }
+
+  const parsedPayload = parseQrPayloadSafe(ticket.qrPayload);
+  if (!hasUsableQrPayload(parsedPayload, ticket, order)) {
+    const newPayload = generateQRPayload({
+      ticketId: ticket.id,
+      orderId: order.id,
+      eventId: order.registration.event.id,
+      registrationId: order.registrationId
+    });
+
+    ticket = await prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { qrPayload: JSON.stringify(newPayload) }
+    });
+  }
+
+  return ticket;
+}
 
 // ============== DESIGN CONSTANTS ==============
 const TICKET_WIDTH = 595;  // A4 width in points
@@ -124,33 +177,7 @@ const drawCutouts = (doc, y, bgColor) => {
 // ============== TICKET RECORD ==============
 export async function createTicketRecord(order) {
   try {
-    let ticket = await prisma.ticket.findUnique({
-      where: { orderId: order.id }
-    });
-
-    if (!ticket) {
-      ticket = await prisma.ticket.create({
-        data: {
-          orderId: order.id,
-          qrPayload: '{}',
-          validUntil: order.registration.event.endTime
-        }
-      });
-
-      const qrPayload = generateQRPayload({
-        ticketId: ticket.id,
-        orderId: order.id,
-        eventId: order.registration.event.id,
-        registrationId: order.registrationId
-      });
-
-      ticket = await prisma.ticket.update({
-        where: { id: ticket.id },
-        data: { qrPayload: JSON.stringify(qrPayload) }
-      });
-    }
-
-    return ticket;
+    return await ensureTicketWithQr(order);
   } catch (error) {
     console.error('Create ticket record error:', error);
     throw error;
@@ -162,20 +189,38 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
   const event = order.registration.event;
   const attendee = order.registration.formResponse;
   const ticketStyle = event.ticketStyle || {};
+  const selectedTemplate = ticketStyle.template || 'modern';
 
   // Get custom colors or use premium defaults
-  const primaryColor = ticketStyle.primaryColor ? hexToRgb(ticketStyle.primaryColor) : COLORS.gold;
-  const accentColor = ticketStyle.accentColor ? hexToRgb(ticketStyle.accentColor) : COLORS.white;
-  const bgColor = ticketStyle.backgroundColor ? hexToRgb(ticketStyle.backgroundColor) : COLORS.darkBg;
+  let primaryColor = ticketStyle.primaryColor ? hexToRgb(ticketStyle.primaryColor) : COLORS.gold;
+  let accentColor = ticketStyle.accentColor ? hexToRgb(ticketStyle.accentColor) : COLORS.white;
+  let bgColor = ticketStyle.backgroundColor ? hexToRgb(ticketStyle.backgroundColor) : COLORS.darkBg;
+
+  if (selectedTemplate === 'minimal') {
+    primaryColor = ticketStyle.primaryColor ? hexToRgb(ticketStyle.primaryColor) : [148, 163, 184];
+    accentColor = ticketStyle.accentColor ? hexToRgb(ticketStyle.accentColor) : [241, 245, 249];
+  } else if (selectedTemplate === 'classic') {
+    primaryColor = ticketStyle.primaryColor ? hexToRgb(ticketStyle.primaryColor) : COLORS.gold;
+    accentColor = ticketStyle.accentColor ? hexToRgb(ticketStyle.accentColor) : [245, 222, 179];
+    bgColor = ticketStyle.backgroundColor ? hexToRgb(ticketStyle.backgroundColor) : [28, 23, 18];
+  } else if (selectedTemplate === 'bold') {
+    primaryColor = ticketStyle.primaryColor ? hexToRgb(ticketStyle.primaryColor) : [239, 68, 68];
+    accentColor = ticketStyle.accentColor ? hexToRgb(ticketStyle.accentColor) : [255, 255, 255];
+  }
 
   // Get customization options with defaults
-  const fontFamily = ticketStyle.fontFamily || 'Helvetica';
+  const allowedFonts = ['Helvetica', 'Times-Roman', 'Courier'];
+  const requestedFont = ticketStyle.fontFamily || 'Helvetica';
+  const fontFamily = allowedFonts.includes(requestedFont) ? requestedFont : 'Helvetica';
   const fontBold = fontFamily === 'Times-Roman' ? 'Times-Bold' :
     fontFamily === 'Courier' ? 'Courier-Bold' : 'Helvetica-Bold';
   const borderRadius = parseInt(ticketStyle.borderRadius) || 20;
-  const showBorder = ticketStyle.showBorder !== false; // default true
-  const showQR = ticketStyle.showQR !== false; // default true
-  const showLogo = ticketStyle.showLogo !== false; // default true
+  const showBorder = selectedTemplate === 'minimal' ? false : ticketStyle.showBorder !== false;
+  const showQR = ticketStyle.showQR !== false;
+  const showLogo = selectedTemplate === 'minimal' ? false : ticketStyle.showLogo !== false;
+  const showPattern = selectedTemplate !== 'minimal';
+  const titleFontSize = selectedTemplate === 'bold' ? 30 : selectedTemplate === 'minimal' ? 22 : 26;
+  const cardFillColor = selectedTemplate === 'classic' ? [38, 30, 22] : COLORS.cardBg;
 
   // Fetch event poster
   const posterImage = await fetchImage(event.posterUrl || ticketStyle.headerImage);
@@ -184,7 +229,9 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
   doc.rect(0, 0, TICKET_WIDTH, TICKET_HEIGHT).fill(bgColor);
 
   // Subtle pattern overlay
-  drawPattern(doc, 0, 0, TICKET_WIDTH, TICKET_HEIGHT, COLORS.white);
+  if (showPattern) {
+    drawPattern(doc, 0, 0, TICKET_WIDTH, TICKET_HEIGHT, COLORS.white);
+  }
 
   // ===== MAIN TICKET CARD =====
   const cardX = MARGIN;
@@ -193,7 +240,7 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
   const cardHeight = 580;
 
   // Card background with gradient simulation (layered rectangles)
-  drawRoundedRect(doc, cardX, cardY, cardWidth, cardHeight, borderRadius, COLORS.cardBg);
+  drawRoundedRect(doc, cardX, cardY, cardWidth, cardHeight, borderRadius, cardFillColor);
 
   // Accent border (conditional)
   if (showBorder) {
@@ -254,7 +301,7 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
   }
 
   // Event title on header
-  doc.font(fontBold).fontSize(26)
+  doc.font(fontBold).fontSize(titleFontSize)
     .fillColor(accentColor)
     .text(event.title, cardX + 25, showLogo ? badgeY + 15 : badgeY, {
       width: cardWidth - 50,
@@ -405,31 +452,7 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
 // ============== MAIN EXPORT FUNCTIONS ==============
 export async function generateTicketPDF(order) {
   try {
-    let ticket = await prisma.ticket.findUnique({
-      where: { orderId: order.id }
-    });
-
-    if (!ticket) {
-      ticket = await prisma.ticket.create({
-        data: {
-          orderId: order.id,
-          qrPayload: '{}',
-          validUntil: order.registration.event.endTime
-        }
-      });
-
-      const qrPayload = generateQRPayload({
-        ticketId: ticket.id,
-        orderId: order.id,
-        eventId: order.registration.event.id,
-        registrationId: order.registrationId
-      });
-
-      ticket = await prisma.ticket.update({
-        where: { id: ticket.id },
-        data: { qrPayload: JSON.stringify(qrPayload) }
-      });
-    }
+    let ticket = await ensureTicketWithQr(order);
 
     // Generate QR code
     const qrCodeBuffer = await QRCode.toBuffer(ticket.qrPayload, {
@@ -453,9 +476,23 @@ export async function generateTicketPDF(order) {
         .catch(reject);
     });
 
-    // Upload to Cloudinary
+    // Upload to R2
     let ticketPdfUrl = null;
-    if (process.env.CLOUDINARY_CLOUD_NAME) {
+    if (isR2Configured()) {
+      try {
+        const key = `tickets/${order.registration.event.id}/${ticket.id}.pdf`;
+        ticketPdfUrl = await uploadBufferToR2({
+          buffer: pdfBuffer,
+          key,
+          contentType: 'application/pdf',
+        });
+      } catch (uploadError) {
+        console.error('R2 upload failed:', uploadError);
+      }
+    }
+
+    // Fallback to Cloudinary
+    if (!ticketPdfUrl && isCloudinaryConfigured()) {
       try {
         console.log('Uploading ticket PDF to Cloudinary...');
         ticketPdfUrl = await uploadPdfToCloudinary(pdfBuffer, 'tickets');
@@ -490,31 +527,7 @@ export async function generateTicketPDF(order) {
 
 export async function generateTicketPDFBuffer(order) {
   try {
-    let ticket = await prisma.ticket.findUnique({
-      where: { orderId: order.id }
-    });
-
-    if (!ticket) {
-      ticket = await prisma.ticket.create({
-        data: {
-          orderId: order.id,
-          qrPayload: '{}',
-          validUntil: order.registration.event.endTime
-        }
-      });
-
-      const qrPayload = generateQRPayload({
-        ticketId: ticket.id,
-        orderId: order.id,
-        eventId: order.registration.event.id,
-        registrationId: order.registrationId
-      });
-
-      ticket = await prisma.ticket.update({
-        where: { id: ticket.id },
-        data: { qrPayload: JSON.stringify(qrPayload) }
-      });
-    }
+    const ticket = await ensureTicketWithQr(order);
 
     // Generate QR code
     const qrCodeBuffer = await QRCode.toBuffer(ticket.qrPayload, {

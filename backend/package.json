@@ -8,6 +8,7 @@
     "dev": "nodemon src/server.js",
     "prestart": "npx prisma generate",
     "start": "node src/server.js",
+    "tickets:backfill": "node scripts/backfill-tickets.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",

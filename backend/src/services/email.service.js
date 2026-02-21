@@ -239,7 +239,7 @@ export async function sendCustomEmail(to, subject, html) {
 export async function sendCertificateEmail(toEmail, userName, eventName, pdfBuffer, certificateType = 'Participation') {
   try {
     await transporter.sendMail({
-      from: `"Occasio Events" <${process.env.SMTP_FROM_EMAIL || 'noreply@occasio.io'}>`,
+      from: `"Occasio Events" <${process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || 'noreply@occasio.io'}>`,
       to: toEmail,
       subject: `Certificate of ${certificateType} - ${eventName}`,
       html: `
@@ -261,6 +261,7 @@ export async function sendCertificateEmail(toEmail, userName, eventName, pdfBuff
     });
     console.log(`${certificateType} certificate sent to ${toEmail}`);
   } catch (error) {
-    console.error('Email send error:', error);
+    console.error('Certificate email send error:', error.message);
+    throw error; // Re-throw so caller can track failures
   }
 }

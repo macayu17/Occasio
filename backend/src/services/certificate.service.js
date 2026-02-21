@@ -2,6 +2,8 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { downloadCloudinaryBuffer } from '../utils/cloudinary.util.js';
+import { getR2ObjectBuffer, isR2TemplateRef } from '../utils/r2.util.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,8 +40,20 @@ async function fetchTemplateBytes(templateUrl) {
     return Buffer.from(base64Data, 'base64');
   }
 
+  // Handle private R2 object refs (r2://bucket/key)
+  if (isR2TemplateRef(templateUrl)) {
+    return getR2ObjectBuffer(templateUrl);
+  }
+
   // Handle HTTP/HTTPS URL (using native fetch, Node 18+)
   if (templateUrl.startsWith('http://') || templateUrl.startsWith('https://')) {
+    // For Cloudinary URLs, use the dedicated download helper (bypasses CDN auth)
+    if (templateUrl.includes('cloudinary.com')) {
+      const buffer = await downloadCloudinaryBuffer(templateUrl);
+      if (buffer) return buffer;
+      throw new Error('Failed to download template from Cloudinary');
+    }
+
     const response = await fetch(templateUrl);
     if (!response.ok) {
       throw new Error(`Failed to fetch template: ${response.status} ${response.statusText}`);
