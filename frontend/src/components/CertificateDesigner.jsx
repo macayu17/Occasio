@@ -124,17 +124,30 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
 
   const loadPdfFromUrl = async (url, certType) => {
     try {
-      // For local URLs, use the API base
       let fetchUrl = url;
-      if (url && !url.startsWith('http') && !url.startsWith('data:')) {
+      
+      // For Cloudinary URLs, use the backend proxy to avoid 401 on raw file delivery
+      if (url && (url.includes('cloudinary.com') || url.startsWith('r2://'))) {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        fetchUrl = `${apiUrl}/admin/events/${eventId}/certificates/template?type=${certType}`;
+      } else if (url && !url.startsWith('http') && !url.startsWith('data:')) {
+        // For local URLs, use the API base
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
         const baseUrl = apiUrl.replace(/\/api$/, '');
         fetchUrl = `${baseUrl}${url}`;
       }
 
-      const response = await fetch(fetchUrl, { mode: 'cors' });
-      if (!response.ok) throw new Error(`Failed to fetch PDF: ${response.status}`);
-      const blob = await response.blob();
+      // Use api instance for proxy endpoint (includes auth headers), plain fetch for others
+      let blob;
+      if (fetchUrl.includes('/certificates/template')) {
+        const response = await api.get(fetchUrl.replace(/^.*\/api/, ''), { responseType: 'blob' });
+        blob = new Blob([response.data], { type: 'application/pdf' });
+      } else {
+        const response = await fetch(fetchUrl, { mode: 'cors' });
+        if (!response.ok) throw new Error(`Failed to fetch PDF: ${response.status}`);
+        blob = await response.blob();
+      }
+      
       const dataUrl = await blobToDataUrl(blob);
       
       setConfigs(prev => ({
@@ -188,7 +201,15 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
       
       let fullUrl = res.data.url;
       console.log('Template URL:', fullUrl);
-      updateActiveConfig({ templateUrl: fullUrl, mapping: [] });
+      
+      if (!fullUrl) {
+        console.error('Upload succeeded but no URL returned. Response:', res.data);
+        toast.error('Upload succeeded but server returned no URL. Try re-uploading.');
+        // Keep the local preview (pdfData) so the user can still test via data URL
+        return;
+      }
+      
+      updateActiveConfig({ templateUrl: fullUrl });
       toast.success('Template uploaded');
     } catch (error) {
       console.error(error);
@@ -282,6 +303,14 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
         { responseType: 'blob' }
       );
       
+      // Check if we got a JSON error response disguised as blob
+      const contentType = response.headers['content-type'] || '';
+      if (contentType.includes('application/json')) {
+        const text = await response.data.text();
+        const errorData = JSON.parse(text);
+        throw new Error(errorData.error || 'Server returned an error');
+      }
+      
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       window.open(url, '_blank');
@@ -289,7 +318,23 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
       toast.success('Test certificate generated!', { id: 'test-cert' });
     } catch (error) {
       console.error('Test certificate error:', error);
-      toast.error('Failed to generate test certificate', { id: 'test-cert' });
+      // Handle blob error responses from axios
+      let errorMessage = 'Failed to generate test certificate';
+      if (error.response?.data instanceof Blob) {
+        try {
+          const text = await error.response.data.text();
+          const errorData = JSON.parse(text);
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          // Could not parse error blob
+        }
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      console.error('Test certificate error detail:', errorMessage);
+      toast.error(errorMessage, { id: 'test-cert' });
     }
   };
 

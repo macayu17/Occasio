@@ -466,6 +466,35 @@ function TicketStyleTab({ eventId, currentStyle }) {
         { id: 'bold', label: 'Bold', desc: 'Eye-catching colors' }
     ];
 
+    const previewTheme = {
+        modern: {
+            cardBg: 'rgb(25, 25, 35)',
+            wrapperBg: style.backgroundColor,
+            headerBg: `linear-gradient(135deg, ${style.primaryColor} 0%, rgba(0,0,0,0.55) 100%)`,
+            accentGlow: `0 0 0 1px ${style.primaryColor}33, 0 20px 45px rgba(0,0,0,0.35)`
+        },
+        minimal: {
+            cardBg: 'rgb(17, 24, 39)',
+            wrapperBg: '#0f172a',
+            headerBg: 'linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0))',
+            accentGlow: '0 0 0 1px rgba(255,255,255,0.08), 0 10px 30px rgba(0,0,0,0.25)'
+        },
+        classic: {
+            cardBg: 'rgb(38, 30, 22)',
+            wrapperBg: 'rgb(28, 23, 18)',
+            headerBg: `linear-gradient(135deg, ${style.primaryColor} 0%, rgba(20,10,0,0.65) 100%)`,
+            accentGlow: `0 0 0 1px ${style.primaryColor}55, inset 0 0 0 1px rgba(245,222,179,0.12)`
+        },
+        bold: {
+            cardBg: 'rgb(30, 16, 28)',
+            wrapperBg: style.backgroundColor,
+            headerBg: `linear-gradient(135deg, ${style.primaryColor} 0%, #111827 100%)`,
+            accentGlow: `0 0 0 1px ${style.primaryColor}66, 0 24px 50px rgba(0,0,0,0.45)`
+        }
+    };
+
+    const selectedPreview = previewTheme[style.template] || previewTheme.modern;
+
     const handleSave = async () => {
         setSaving(true);
         try {
@@ -643,10 +672,11 @@ function TicketStyleTab({ eventId, currentStyle }) {
             <div className="lg:sticky lg:top-6">
                 <label className="block text-sm font-medium text-gray-400 mb-3">Live Preview</label>
                 <div
-                    className="overflow-hidden transition-all"
+                    className="overflow-hidden transition-all p-2"
                     style={{
-                        backgroundColor: style.backgroundColor,
+                        backgroundColor: selectedPreview.wrapperBg,
                         borderRadius: `${style.borderRadius}px`,
+                        boxShadow: selectedPreview.accentGlow,
                         fontFamily: style.fontFamily === 'Times-Roman' ? 'Times New Roman, serif' :
                             style.fontFamily === 'Courier' ? 'Courier New, monospace' : 'Helvetica, Arial, sans-serif'
                     }}
@@ -655,7 +685,7 @@ function TicketStyleTab({ eventId, currentStyle }) {
                     <div
                         className="m-3 rounded-lg overflow-hidden"
                         style={{
-                            backgroundColor: 'rgb(25, 25, 35)',
+                            backgroundColor: selectedPreview.cardBg,
                             border: style.showBorder ? `2px solid ${style.primaryColor}` : 'none',
                             borderRadius: `${Math.max(0, parseInt(style.borderRadius) - 4)}px`
                         }}
@@ -666,7 +696,7 @@ function TicketStyleTab({ eventId, currentStyle }) {
                             style={{
                                 background: style.headerImage
                                     ? `linear-gradient(to top, rgba(0,0,0,0.7), transparent), url(${style.headerImage}) center/cover`
-                                    : style.primaryColor
+                                    : selectedPreview.headerBg
                             }}
                         >
                             <div>
@@ -678,6 +708,11 @@ function TicketStyleTab({ eventId, currentStyle }) {
                                 <h4 className="text-lg font-bold" style={{ color: style.accentColor }}>
                                     Tech Summit 2026
                                 </h4>
+                                {style.template === 'bold' && (
+                                    <p className="text-[10px] mt-1 font-semibold tracking-wide" style={{ color: style.primaryColor }}>
+                                        VIP ACCESS
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -748,6 +783,9 @@ function TicketStyleTab({ eventId, currentStyle }) {
                             )}
                         </div>
                     </div>
+                    <p className="text-[11px] text-gray-500 px-4 pb-3">
+                        Template: <span className="text-gray-300 font-medium capitalize">{style.template}</span> • Preview updates exactly as you edit colors, corners, font, and elements.
+                    </p>
                 </div>
             </div>
         </div>
@@ -1369,6 +1407,26 @@ function CertificatesTab({ eventId, event }) {
     const [sending, setSending] = useState(false);
     const [dryRunLoading, setDryRunLoading] = useState(false);
     const [stats, setStats] = useState(null);
+    const [previewBlobUrl, setPreviewBlobUrl] = useState(null);
+
+    // Load preview via authenticated API call (iframe can't pass auth headers)
+    useEffect(() => {
+        const configs = event?.certificateConfigs || {};
+        const hasTemplate = configs?.participation?.templateUrl || event?.certificateTemplateUrl;
+        if (!hasTemplate) return;
+
+        let blobUrl = null;
+        api.get(`/admin/events/${eventId}/certificates/template?type=participation`, { responseType: 'blob' })
+            .then(res => {
+                blobUrl = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+                setPreviewBlobUrl(blobUrl);
+            })
+            .catch(err => {
+                console.error('Failed to load certificate preview:', err);
+            });
+
+        return () => { if (blobUrl) URL.revokeObjectURL(blobUrl); };
+    }, [eventId, event?.certificateTemplateUrl]);
 
     const handleSend = async (dryRun = false) => {
         if (!confirm(dryRun ? 'Check how many emails will be sent?' : 'Are you sure you want to send certificates to ALL checked-in users?')) return;
@@ -1393,7 +1451,13 @@ function CertificatesTab({ eventId, event }) {
         }
     };
 
-    if (!event.certificateEnabled) {
+    // Check if any certificate is configured (new configs or legacy)
+    const configs = event.certificateConfigs || {};
+    const hasAnyConfig = event.certificateEnabled || 
+        event.certificateTemplateUrl || 
+        Object.values(configs).some(c => c?.templateUrl);
+
+    if (!hasAnyConfig) {
       return (
         <div className="glass-card p-12 text-center">
             <Award className="mx-auto mb-4 text-gray-500" size={64} />
@@ -1409,6 +1473,10 @@ function CertificatesTab({ eventId, event }) {
       );
     }
 
+    // Get the best template URL for preview — always use the backend proxy
+    // (Cloudinary raw file URLs return 401 without signed access)
+    const hasTemplate = configs?.participation?.templateUrl || event.certificateTemplateUrl;
+
     return (
         <div className="space-y-6">
             <div className="glass-card p-6">
@@ -1418,12 +1486,14 @@ function CertificatesTab({ eventId, event }) {
                     <div>
                         <h3 className="text-sm font-semibold text-gray-400 mb-2 uppercase">Preview</h3>
                         <div className="relative aspect-[1.414] bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
-                             {event.certificateTemplateUrl ? (
+                             {previewBlobUrl ? (
                                 <iframe 
-                                    src={event.certificateTemplateUrl} 
+                                    src={previewBlobUrl} 
                                     className="w-full h-full"
                                     title="Certificate Preview"
                                 />
+                             ) : hasTemplate ? (
+                                <div className="flex items-center justify-center h-full text-gray-400">Loading preview...</div>
                              ) : (
                                 <div className="flex items-center justify-center h-full text-gray-500">No Preview</div>
                              )}

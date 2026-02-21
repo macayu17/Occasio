@@ -77,9 +77,11 @@ export default function ScannerPage() {
 
     setLoading(true);
 
+    const normalizedQrData = String(qrData || '').trim().replace(/^\uFEFF/, '');
+
     try {
       const response = await api.post('/tickets/verify', {
-        qrPayload: qrData
+        qrPayload: normalizedQrData
       });
 
       setVerificationResult({
