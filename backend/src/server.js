@@ -1,7 +1,7 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 
 // Import routes
@@ -20,8 +20,6 @@ import pushRoutes from './routes/push.routes.js';
 import teamRoutes from './routes/team.routes.js';
 import featureRoutes from './routes/feature.routes.js';
 import walletRoutes from './routes/wallet.routes.js';
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;

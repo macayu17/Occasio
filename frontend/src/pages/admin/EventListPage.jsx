@@ -1,20 +1,33 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, FileText, Users, Eye, EyeOff, BarChart3, MoreVertical, MapPin, CalendarDays, Tag, Copy, Send, Settings } from 'lucide-react';
+import { Plus, Edit, Trash2, FileText, Users, Eye, EyeOff, BarChart3, MoreVertical, MapPin, CalendarDays, Tag, Copy, Settings } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import Dock from '../../components/Dock';
 
 export default function EventListPage() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [selectedEventId, setSelectedEventId] = useState(null);
   const menuRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchEvents();
   }, []);
+
+  useEffect(() => {
+    if (events.length === 0) {
+      setSelectedEventId(null);
+      return;
+    }
+
+    if (!selectedEventId || !events.some(event => event.id === selectedEventId)) {
+      setSelectedEventId(events[0].id);
+    }
+  }, [events, selectedEventId]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -68,10 +81,11 @@ export default function EventListPage() {
       case 'delete':
         handleDelete(eventId);
         break;
-      case 'toggle':
+      case 'toggle': {
         const event = events.find(e => e.id === eventId);
         if (event) togglePublish(eventId, event.published);
         break;
+      }
       case 'duplicate':
         handleDuplicate(eventId);
         break;
@@ -127,6 +141,60 @@ export default function EventListPage() {
     }
   };
 
+  const selectedEvent = events.find(event => event.id === selectedEventId);
+  const dockItems = selectedEvent ? [
+    {
+      label: 'Public',
+      icon: <Eye size={20} />,
+      onClick: () => handleAction('view', selectedEvent.id)
+    },
+    {
+      label: 'Edit',
+      icon: <Edit size={20} />,
+      onClick: () => handleAction('edit', selectedEvent.id)
+    },
+    {
+      label: 'Registrations',
+      icon: <Users size={20} />,
+      onClick: () => handleAction('registrations', selectedEvent.id)
+    },
+    {
+      label: 'Control',
+      icon: <Settings size={20} />,
+      onClick: () => handleAction('control', selectedEvent.id)
+    },
+    {
+      label: 'Analytics',
+      icon: <BarChart3 size={20} />,
+      onClick: () => handleAction('analytics', selectedEvent.id)
+    },
+    {
+      label: 'Discounts',
+      icon: <Tag size={20} />,
+      onClick: () => handleAction('discounts', selectedEvent.id)
+    },
+    {
+      label: 'Form',
+      icon: <FileText size={20} />,
+      onClick: () => handleAction('form', selectedEvent.id)
+    },
+    {
+      label: 'Duplicate',
+      icon: <Copy size={20} />,
+      onClick: () => handleAction('duplicate', selectedEvent.id)
+    },
+    {
+      label: selectedEvent.published ? 'Unpublish' : 'Publish',
+      icon: selectedEvent.published ? <EyeOff size={20} /> : <Eye size={20} />,
+      onClick: () => handleAction('toggle', selectedEvent.id)
+    },
+    {
+      label: 'Delete',
+      icon: <Trash2 size={20} />,
+      onClick: () => handleAction('delete', selectedEvent.id)
+    }
+  ] : [];
+
   if (loading) {
     return (
       <div className="flex justify-center py-20">
@@ -136,24 +204,25 @@ export default function EventListPage() {
   }
 
   return (
-    <div className="animate-fade-in relative min-h-screen pb-20">
-      <div className="flex justify-between items-end mb-8">
+    <div className="animate-fade-in relative min-h-screen pb-36">
+      <div className="mb-8 flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">My Events</h1>
-          <p className="text-gray-400">Manage, edit, and track your events.</p>
+          <p className="admin-eyebrow mb-3">Event ledger</p>
+          <h1 className="mb-3 text-4xl font-black tracking-tight text-[#f7efe3] md:text-5xl">My Events</h1>
+          <p className="admin-muted max-w-2xl">Manage, edit, and track your events. Select any row to use the quick action buttons below.</p>
         </div>
-        <Link to="/admin/events/create" className="btn btn-primary flex items-center gap-2">
+        <Link to="/admin/events/create" className="admin-primary-action flex items-center gap-2 self-start xl:self-auto">
           <Plus size={20} />
           <span>New Event</span>
         </Link>
       </div>
 
       {events.length === 0 ? (
-        <div className="glass-card text-center py-20 border-dashed border-2 border-white/10 rounded-3xl bg-[#18181b]/40">
+        <div className="admin-card border-dashed text-center py-20">
           <CalendarDays className="mx-auto text-gray-600 mb-4" size={48} />
           <h3 className="text-xl font-bold text-white mb-2">No events found</h3>
           <p className="text-gray-400 mb-6">Get started by creating your first event.</p>
-          <Link to="/admin/events/create" className="btn btn-primary inline-flex">
+          <Link to="/admin/events/create" className="admin-primary-action inline-flex">
             Create Event
           </Link>
         </div>
@@ -162,51 +231,52 @@ export default function EventListPage() {
           {events.map((event, index) => (
             <div
               key={event.id}
-              className={`glass-card p-5 rounded-2xl bg-[#18181b]/60 border border-white/5 hover:border-[#E23744]/30 hover:bg-[#18181b] transition-all group animate-slide-up ${openMenuId === event.id ? 'relative z-[100]' : 'relative'}`}
+              onClick={() => setSelectedEventId(event.id)}
+              className={`admin-card admin-card-hover group animate-slide-up relative cursor-pointer p-5 ${openMenuId === event.id ? 'z-[100]' : ''} ${selectedEventId === event.id ? 'border-[#f2e7d8]/35 bg-[#191511] shadow-[#E23744]/10' : ''}`}
               style={{ animationDelay: `${index * 50}ms` }}
             >
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-xl font-bold text-white group-hover:text-[#E23744] transition-colors cursor-pointer" onClick={() => navigate(`/admin/events/${event.id}/edit`)}>
+                    <h3 className="text-xl font-black text-[#f7efe3] transition-colors group-hover:text-white" onClick={(e) => { e.stopPropagation(); navigate(`/admin/events/${event.id}/edit`); }}>
                       {event.title}
                     </h3>
-                    <span className={`text-xs px-2 py-0.5 rounded-md font-medium border ${event.published ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'}`}>
+                    <span className={`admin-chip ${event.published ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'}`}>
                       {event.published ? 'PUBLISHED' : 'DRAFT'}
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-6 text-sm text-gray-400">
+                  <div className="flex flex-wrap items-center gap-5 text-sm text-[#aaa096]">
                     <div className="flex items-center gap-2">
-                      <MapPin size={14} className="text-gray-500" />
+                      <MapPin size={14} className="text-[#8f867d]" />
                       {event.location}
                     </div>
                     <div className="flex items-center gap-2">
-                      <CalendarDays size={14} className="text-gray-500" />
+                      <CalendarDays size={14} className="text-[#8f867d]" />
                       {format(new Date(event.startTime), 'MMM d, yyyy • h:mm a')}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4">
-                  <div className="text-right px-4 border-r border-white/10">
-                    <div className="text-2xl font-bold text-white">{event._count?.registrations || 0}</div>
-                    <div className="text-xs text-gray-500 uppercase">Registrations</div>
+                <div className="flex w-full flex-wrap items-center gap-3 md:w-auto md:flex-nowrap md:gap-4">
+                  <div className="text-right px-3 border-r border-white/10 md:px-4">
+                    <div className="text-2xl font-black text-[#f7efe3]">{event._count?.registrations || 0}</div>
+                    <div className="text-[0.65rem] uppercase tracking-[0.16em] text-[#8f867d]">Registrations</div>
                   </div>
 
-                  <div className="text-right px-4 border-r border-white/10">
-                    <div className="text-2xl font-bold text-white">
+                  <div className="text-right px-3 border-r border-white/10 md:px-4">
+                    <div className="text-2xl font-black text-[#f7efe3]">
                       {event.priceCents === 0 ? 'FREE' : `₹${event.priceCents / 100}`}
                     </div>
-                    <div className="text-xs text-gray-500 uppercase">Price</div>
+                    <div className="text-[0.65rem] uppercase tracking-[0.16em] text-[#8f867d]">Price</div>
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex gap-2 pl-2">
-                    <Link to={`/admin/events/${event.id}/registrations`} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-[#E23744] transition-colors" title="View Registrations">
+                  <div className="ml-auto flex shrink-0 gap-2 pl-0 md:pl-2">
+                    <Link to={`/admin/events/${event.id}/registrations`} className="admin-icon-button" title="View Registrations" onClick={(e) => e.stopPropagation()}>
                       <Users size={18} />
                     </Link>
-                    <Link to={`/admin/events/${event.id}/edit`} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title="Edit">
+                    <Link to={`/admin/events/${event.id}/edit`} className="admin-icon-button" title="Edit" onClick={(e) => e.stopPropagation()}>
                       <Edit size={18} />
                     </Link>
 
@@ -214,14 +284,14 @@ export default function EventListPage() {
                     <div className="relative" ref={openMenuId === event.id ? menuRef : null}>
                       <button
                         onClick={(e) => toggleMenu(e, event.id)}
-                        className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+                        className="admin-icon-button"
                         title="More Options"
                       >
                         <MoreVertical size={18} />
                       </button>
 
                       {openMenuId === event.id && (
-                        <div className="absolute right-0 top-full mt-2 z-[9999] bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl py-2 w-52 text-sm backdrop-blur-xl animate-fade-in">
+                        <div className="absolute right-0 top-full mt-2 z-[9999] bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl py-2 w-52 text-sm backdrop-blur-xl animate-fade-in" onClick={(e) => e.stopPropagation()}>
                           <button onClick={() => handleAction('view', event.id)} className="w-full text-left px-4 py-2.5 hover:bg-white/10 text-white flex items-center gap-3">
                             <Eye size={14} /> View Public Page
                           </button>
@@ -263,6 +333,20 @@ export default function EventListPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {selectedEvent && (
+        <div className="fixed bottom-8 left-1/2 z-50 w-[min(760px,calc(100vw-2rem))] -translate-x-1/2 lg:left-[calc(50%+9rem)]">
+          <Dock
+            items={dockItems}
+            className="mx-auto"
+            magnification={62}
+            baseItemSize={46}
+            distance={110}
+            panelHeight={102}
+            minimal
+          />
         </div>
       )}
     </div>

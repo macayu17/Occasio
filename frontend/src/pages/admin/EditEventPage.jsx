@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import api, { getImageUrl } from '../../utils/api';
 import toast from 'react-hot-toast';
-import { Upload, FileText, Settings, Award } from 'lucide-react';
+import { Upload, Settings, Award } from 'lucide-react';
 import { format } from 'date-fns';
 import CertificateDesigner from '../../components/CertificateDesigner';
 

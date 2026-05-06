@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { CheckCircle, Mail, Calendar, Download, Share2, ArrowRight } from 'lucide-react';
+import { CheckCircle, Mail, Calendar, Download, ArrowRight } from 'lucide-react';
 import ShareButtons from '../../components/ShareButtons';
 
 // Get API URL with fallback

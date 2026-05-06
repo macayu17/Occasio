@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Calendar, MapPin, Users, ArrowLeft, Loader2, Tag } from 'lucide-react';
+import { Calendar, MapPin, Users, ArrowLeft, Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import api, { getImageUrl } from '../../utils/api';
 import { format } from 'date-fns';
@@ -17,7 +17,7 @@ export default function EventDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [waitlistJoined, setWaitlistJoined] = useState(false);
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm();
+  const { handleSubmit, formState: { isSubmitting } } = useForm();
 
   useEffect(() => {
     fetchEvent();

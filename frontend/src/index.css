@@ -31,7 +31,7 @@
 
   /* Minimal Button System */
   .btn {
-    @apply px-5 py-2.5 rounded-xl font-medium transition-all duration-200 active:scale-95 flex items-center justify-center gap-2;
+    @apply px-5 py-2.5 rounded-full font-medium transition-all duration-200 active:scale-95 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E23744] focus-visible:ring-offset-2 focus-visible:ring-offset-[#09090b];
   }
 
   .btn-primary {
@@ -80,10 +80,123 @@
   .badge-neutral {
     @apply bg-white/5 text-gray-400 border border-white/5;
   }
+
+  .admin-shell {
+    background:
+      radial-gradient(circle at 18% 10%, rgba(226, 55, 68, 0.12), transparent 32rem),
+      radial-gradient(circle at 82% 18%, rgba(226, 55, 68, 0.08), transparent 30rem),
+      linear-gradient(135deg, #0b0a09 0%, #11100e 52%, #090909 100%);
+    color: #f7efe3;
+    font-family: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+  }
+
+  .admin-side-panel {
+    @apply border border-white/10 bg-[#12100e]/85 shadow-2xl shadow-black/30 backdrop-blur-2xl;
+  }
+
+  .admin-topbar {
+    @apply border-b border-white/10 bg-[#0b0a09]/75 shadow-sm shadow-black/20 backdrop-blur-2xl;
+  }
+
+  .admin-nav-link {
+    @apply flex items-center gap-3 rounded-full px-4 py-3 text-sm font-semibold tracking-wide transition-all;
+  }
+
+  .admin-nav-link-active {
+    @apply bg-[#f2e7d8] text-[#17110d] shadow-lg shadow-[#E23744]/20;
+  }
+
+  .admin-nav-link-idle {
+    @apply text-[#aca39a] hover:bg-white/[0.07] hover:text-[#f7efe3];
+  }
+
+  .admin-card {
+    @apply rounded-[1.65rem] border border-white/10 bg-[#151311]/80 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-all;
+  }
+
+  .admin-card-hover {
+    @apply hover:-translate-y-0.5 hover:border-[#f2e7d8]/25 hover:bg-[#191511];
+  }
+
+  .admin-eyebrow {
+    @apply text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-[#E23744];
+  }
+
+  .admin-muted {
+    @apply text-[#aaa096];
+  }
+
+  .admin-chip {
+    @apply inline-flex items-center rounded-full border px-3 py-1 text-[0.68rem] font-bold uppercase tracking-[0.12em];
+  }
+
+  .admin-primary-action {
+    @apply rounded-full border border-[#E23744]/60 bg-[#E23744] px-5 py-3 text-sm font-bold text-white shadow-xl shadow-[#E23744]/20 transition-all hover:-translate-y-0.5 hover:bg-[#f04552] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E23744] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0a09];
+  }
+
+  .admin-icon-button {
+    @apply inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-[#bdb4aa] transition-all hover:border-[#f2e7d8]/30 hover:bg-[#f2e7d8] hover:text-[#17110d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E23744] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0a09];
+  }
+
+  .scanner-reader,
+  .scanner-reader > div {
+    width: 100% !important;
+    height: 100% !important;
+    border: 0 !important;
+  }
+
+  .scanner-reader video {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover;
+  }
+
+  .scanner-reader canvas {
+    display: none !important;
+  }
+
+  .admin-command-dock {
+    @apply rounded-[2rem] border border-[#f2e7d8]/15 bg-[#100e0c]/90 p-3 shadow-[0_22px_90px_rgba(0,0,0,0.45)] backdrop-blur-2xl;
+  }
+
+  .auth-shell {
+    background:
+      radial-gradient(circle at 18% 18%, rgba(226, 55, 68, 0.18), transparent 26rem),
+      radial-gradient(circle at 85% 12%, rgba(255, 255, 255, 0.06), transparent 20rem),
+      linear-gradient(135deg, #090909 0%, #151111 54%, #080808 100%);
+  }
+
+  .auth-panel {
+    @apply rounded-[2rem] border border-white/10 bg-[#111]/85 p-6 shadow-[0_24px_90px_rgba(0,0,0,0.35)] backdrop-blur-2xl sm:p-8;
+  }
+
+  .auth-input {
+    @apply w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-white placeholder-[#756d66] outline-none transition-all focus:border-[#E23744]/70 focus:ring-2 focus:ring-[#E23744]/20;
+  }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }

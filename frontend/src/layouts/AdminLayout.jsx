@@ -1,6 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
 import {
   Calendar,
   LayoutDashboard,
@@ -11,7 +10,8 @@ import {
   Ticket,
   BarChart3,
   QrCode,
-  Users
+  Users,
+  ExternalLink
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import api from '../utils/api';
@@ -70,7 +70,7 @@ export default function AdminLayout() {
   const isTeamOnlyUser = !showOrganizerItems && hasOwnEvents === false;
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white selection:bg-[#E23744] selection:text-white">
+    <div className="admin-shell min-h-screen selection:bg-[#E23744] selection:text-white">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -81,30 +81,31 @@ export default function AdminLayout() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 glass-nav border-r border-white/5 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed inset-y-0 left-0 z-50 w-72 transform p-3 transition-transform duration-300 ease-in-out lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
       >
-        <div className="flex flex-col h-full bg-[#09090b]/80 backdrop-blur-xl">
+        <div className="admin-side-panel flex h-full flex-col rounded-[2rem]">
           {/* Logo */}
-          <div className="flex items-center h-20 px-8 border-b border-white/5">
+          <div className="flex h-20 items-center border-b border-white/10 px-5">
             <Link to={showOrganizerItems ? "/admin" : "/admin/team-events"} className="flex items-center gap-3 group">
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#E23744] text-white shadow-lg shadow-red-900/20">
+              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#E23744] text-white shadow-lg shadow-red-900/20">
                 <Ticket size={16} fill="currentColor" className="transform -rotate-12" />
               </div>
-              <span className="text-xl font-bold tracking-tight text-white">
+              <span className="text-lg font-black tracking-tight text-[#f7efe3]">
                 {isTeamOnlyUser ? 'Occasio Team' : 'Occasio Admin'}
               </span>
             </Link>
             <button
               onClick={() => setSidebarOpen(false)}
               className="lg:hidden ml-auto p-2 hover:bg-white/10 rounded-lg transition-colors"
+              aria-label="Close sidebar"
             >
               <X size={20} className="text-gray-400" />
             </button>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-8 space-y-1 overflow-y-auto">
+          <nav className="flex-1 space-y-2 overflow-y-auto px-2 py-7">
             {navigation.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.href);
@@ -112,10 +113,7 @@ export default function AdminLayout() {
                 <Link
                   key={item.name}
                   to={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${active
-                    ? 'bg-[#E23744] text-white shadow-lg shadow-red-900/20'
-                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                    }`}
+                  className={`admin-nav-link ${active ? 'admin-nav-link-active' : 'admin-nav-link-idle'}`}
                   onClick={() => setSidebarOpen(false)}
                 >
                   <Icon size={20} />
@@ -124,29 +122,39 @@ export default function AdminLayout() {
               );
             })}
 
+            <a
+              href="/"
+              target="_blank"
+              className="admin-nav-link admin-nav-link-idle"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <ExternalLink size={20} />
+              <span>View Site</span>
+            </a>
+
             {/* Create Event - only for users with their own events or admin */}
             {showOrganizerItems && (
-              <div className="pt-8 mt-4 border-t border-white/5">
+              <div className="mt-5 border-t border-white/10 pt-6">
                 <Link
                   to="/admin/events/create"
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl border border-white/10 text-gray-300 hover:border-[#E23744] hover:text-[#E23744] transition-all group"
+                  className="group flex items-center gap-3 rounded-[1.35rem] border border-white/10 bg-white/[0.03] px-4 py-4 text-[#e6dace] transition-all hover:border-[#f2e7d8]/25 hover:bg-white/[0.07]"
                   onClick={() => setSidebarOpen(false)}
                 >
-                  <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-[#E23744] group-hover:text-white transition-colors">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#f2e7d8] text-[#17110d] transition-colors group-hover:bg-[#E23744] group-hover:text-white">
                     <Plus size={16} />
                   </div>
-                  <span className="font-medium">Create Event</span>
+                  <span className="font-bold">Create Event</span>
                 </Link>
               </div>
             )}
           </nav>
 
           {/* User section */}
-          <div className="p-4 border-t border-white/5">
-            <div className="bg-white/5 rounded-xl p-4 flex items-center justify-between">
+          <div className="border-t border-white/10 p-3">
+            <div className="flex items-center justify-between rounded-[1.35rem] border border-white/10 bg-white/[0.04] p-4">
               <div className="flex-1 min-w-0 mr-3">
-                <p className="text-sm font-semibold text-white truncate">{user?.name}</p>
-                <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                <p className="truncate text-sm font-bold text-[#f7efe3]">{user?.name}</p>
+                <p className="truncate text-xs text-[#8f867d]">{user?.email}</p>
               </div>
               <button
                 onClick={logout}
@@ -161,27 +169,17 @@ export default function AdminLayout() {
       </aside>
 
       {/* Main content */}
-      <div className="lg:pl-72 min-h-screen">
-        {/* Top bar */}
-        <header className="glass-nav h-20 flex items-center px-4 lg:px-8 sticky top-0 z-30">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="lg:hidden mr-4 p-2 hover:bg-white/10 rounded-lg transition-colors"
-          >
-            <Menu size={24} className="text-white" />
-          </button>
-          <div className="flex items-center justify-between w-full">
-            <h1 className="text-xl font-bold text-white">
-              {navigation.find(n => n.href === location.pathname)?.name || 'Admin Panel'}
-            </h1>
-            <a href="/" target="_blank" className="text-sm text-gray-500 hover:text-[#E23744] transition-colors">
-              View Site
-            </a>
-          </div>
-        </header>
+      <div className="min-h-screen lg:pl-72">
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="fixed left-4 top-4 z-30 rounded-full border border-white/10 bg-[#100e0c]/90 p-3 text-white shadow-2xl backdrop-blur-xl transition-colors hover:bg-white/10 lg:hidden"
+          aria-label="Open sidebar"
+        >
+          <Menu size={22} />
+        </button>
 
         {/* Page content */}
-        <main className="p-4 lg:p-8">
+        <main className="p-4 pt-20 lg:p-8">
           <Outlet />
         </main>
       </div>

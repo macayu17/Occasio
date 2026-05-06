@@ -148,7 +148,7 @@ export default function FinancialsPage() {
                                 <div className="border-t border-white w-full h-px"></div>
                             </div>
 
-                            {data.revenueChart.map((item, index) => {
+                            {data.revenueChart.map((item) => {
                                 const height = maxRevenue > 0 ? (item.revenue / maxRevenue) * 100 : 0;
                                 return (
                                     <div key={item.month} className="flex-1 flex flex-col items-center gap-3 z-10 group">

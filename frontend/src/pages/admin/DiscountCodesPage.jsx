@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
-import { Plus, Tag, Calendar, Check, X, ArrowLeft, Trash2 } from 'lucide-react';
+import { Plus, Tag, X, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function DiscountCodesPage() {
@@ -11,9 +11,7 @@ export default function DiscountCodesPage() {
     const [codes, setCodes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const { register, handleSubmit, reset, watch, formState: { errors } } = useForm();
-
-    const discountType = watch('type');
+    const { register, handleSubmit, reset, formState: { errors } } = useForm();
 
     useEffect(() => {
         fetchCodes();

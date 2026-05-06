@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import {
-  TrendingUp, Users, IndianRupee, Calendar, CheckCircle, XCircle,
+  Users, IndianRupee, CheckCircle, XCircle,
   Clock, Ticket, Tag, CreditCard, BarChart3, ArrowUpRight, ArrowDownRight,
-  Percent, UserCheck, Zap
+  Percent, UserCheck
 } from 'lucide-react';
 import api from '../../utils/api';
 import { format } from 'date-fns';

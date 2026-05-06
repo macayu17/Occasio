@@ -1,26 +1,46 @@
 import { Outlet, Link } from 'react-router-dom';
-import { Compass, Menu, X, Ticket, Sparkles } from 'lucide-react';
-import { useState } from 'react';
-import FloatingLines from '../components/FloatingLines';
+import { Menu, X, Ticket } from 'lucide-react';
+import { Suspense, lazy, useEffect, useState } from 'react';
+
+const FloatingLines = lazy(() => import('../components/FloatingLines'));
 
 export default function PublicLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const currentYear = new Date().getFullYear();
+
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') setMobileMenuOpen(false);
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#09090b] text-white selection:bg-[#E23744] selection:text-white relative overflow-x-hidden font-['Outfit']">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-xl focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-black"
+      >
+        Skip to content
+      </a>
+
       {/* --- Universal Dynamic Background --- */}
       <div className="fixed inset-0 w-full h-full pointer-events-none z-0">
         {/* Floating Lines */}
         <div className="absolute inset-0 opacity-30">
-          <FloatingLines
-            linesGradient={['#333333', '#111111', '#E23744', '#1a1a1a']}
-            enabledWaves={['top', 'bottom']}
-            lineCount={[6, 8]}
-            lineDistance={[10, 15]}
-            animationSpeed={0.3}
-            interactive={true}
-            mixBlendMode="lighten"
-          />
+          <Suspense fallback={null}>
+            <FloatingLines
+              linesGradient={['#333333', '#111111', '#E23744', '#1a1a1a']}
+              enabledWaves={['top', 'bottom']}
+              lineCount={[6, 8]}
+              lineDistance={[10, 15]}
+              animationSpeed={0.3}
+              interactive={true}
+              mixBlendMode="lighten"
+            />
+          </Suspense>
         </div>
 
         {/* Ambient Gradient Orbs */}
@@ -64,6 +84,8 @@ export default function PublicLayout() {
             <div className="md:hidden">
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                aria-expanded={mobileMenuOpen}
                 className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
               >
                 {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -103,7 +125,7 @@ export default function PublicLayout() {
       </nav>
 
       {/* Main Content */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main id="main-content" className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Outlet />
       </main>
 
@@ -125,7 +147,7 @@ export default function PublicLayout() {
             </div>
 
             <div className="text-sm text-gray-600">
-              © 2025 Occasio Events
+              © {currentYear} Occasio Events
             </div>
           </div>
         </div>

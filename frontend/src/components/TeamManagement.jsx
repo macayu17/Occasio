@@ -180,7 +180,6 @@ export default function TeamManagement({ eventId }) {
             ) : (
                 <div className="grid gap-3">
                     {members.map(member => {
-                        const roleInfo = ROLES.find(r => r.id === member.role) || ROLES[2];
                         return (
                             <div key={member.id} className="card p-4 flex items-center gap-4 group">
                                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#E23744] to-purple-600 flex items-center justify-center text-white font-bold">

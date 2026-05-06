@@ -144,7 +144,7 @@ export default function AdminDashboard() {
           </div>
         ) : (
           <div className="space-y-2">
-            {recentEvents.map((event, index) => (
+            {recentEvents.map((event) => (
               <div
                 key={event.id}
                 className="flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-colors border border-transparent hover:border-white/5 group"

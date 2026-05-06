@@ -23,7 +23,7 @@ const AVAILABLE_FIELDS = [
   { id: 'qrCode', label: 'Verification QR', icon: Type },
 ];
 
-export default function CertificateDesigner({ eventId, initialConfig, onClose, onSave }) {
+export default function CertificateDesigner({ eventId, initialConfig, onSave }) {
   // Active certificate type tab
   const [activeCertType, setActiveCertType] = useState('participation');
   
@@ -33,7 +33,6 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
   const [selectedFieldId, setSelectedFieldId] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [pageWidth, setPageWidth] = useState(0);
-  const [numPages, setNumPages] = useState(null);
   const [pdfError, setPdfError] = useState(null);
   const [sendModalOpen, setSendModalOpen] = useState(false);
   const [sendEmails, setSendEmails] = useState('');
@@ -591,8 +590,7 @@ export default function CertificateDesigner({ eventId, initialConfig, onClose, o
             >
                <Document
                 file={activeConfig.pdfData}
-                onLoadSuccess={({ numPages: n }) => {
-                  setNumPages(n);
+                onLoadSuccess={() => {
                   setPdfError(null);
                 }}
                 onLoadError={(error) => {

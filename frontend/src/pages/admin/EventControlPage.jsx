@@ -4,7 +4,7 @@ import {
     ArrowLeft, Users, UserCog, QrCode, BarChart3, Palette,
     Search, Check, X, RotateCcw, LogIn, LogOut,
     Clock, UserCheck, UserX, RefreshCw, MessageSquare, Trash2, PlusCircle,
-    Mic, Ticket, Bell, Award, Send, XCircle, AlertTriangle
+    Mic, Ticket, Bell, Award, Send, XCircle
 } from 'lucide-react';
 import api from '../../utils/api';
 import { format } from 'date-fns';
@@ -162,7 +162,7 @@ export default function EventControlPage() {
 
             {/* Tab Content */}
             {activeTab === 'overview' && (
-                <OverviewTab stats={stats} event={event} />
+                <OverviewTab stats={stats} />
             )}
 
             {activeTab === 'checkin' && (
@@ -221,7 +221,7 @@ export default function EventControlPage() {
 }
 
 // Overview Tab Component
-function OverviewTab({ stats, event }) {
+function OverviewTab({ stats }) {
     if (!stats) return <div className="text-gray-400">Loading stats...</div>;
 
     return (
@@ -898,6 +898,10 @@ function PollsTab({ eventId }) {
             toast.error('Failed to update poll');
         }
     };
+
+    if (loading) {
+        return <div className="text-gray-400">Loading polls...</div>;
+    }
 
     return (
         <div className="space-y-6">
