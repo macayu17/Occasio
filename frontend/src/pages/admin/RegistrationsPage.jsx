@@ -18,7 +18,7 @@ export default function RegistrationsPage() {
   const fetchData = async () => {
     try {
       const [eventRes, regRes] = await Promise.all([
-        api.get(`/events/${id}`),
+        api.get(`/admin/events/${id}`),
         api.get(`/admin/events/${id}/registrations`)
       ]);
 

@@ -51,17 +51,26 @@ const pdfFileFilter = (req, file, cb) => {
   }
 };
 
-// Use memory storage if Cloudinary is configured (for production)
-// Otherwise use disk storage (for local development)
-const getStorage = () => {
-  if (isCloudinaryConfigured() || isR2Configured() || (process.env.NODE_ENV === 'production' && process.env.AWS_ACCESS_KEY_ID)) {
+const hasS3PosterFallback = () => process.env.NODE_ENV === 'production' && process.env.AWS_ACCESS_KEY_ID;
+
+// Posters only use Cloudinary, S3 fallback, or local disk. R2 is reserved for generated PDF assets.
+const getImageStorage = () => {
+  if (isCloudinaryConfigured() || hasS3PosterFallback()) {
+    return memoryStorage;
+  }
+  return diskStorage;
+};
+
+// Certificate templates and generated PDFs can use R2, Cloudinary, S3 fallback, or local disk.
+const getDocumentStorage = () => {
+  if (isCloudinaryConfigured() || isR2Configured() || hasS3PosterFallback()) {
     return memoryStorage;
   }
   return diskStorage;
 };
 
 export const upload = multer({
-  storage: getStorage(),
+  storage: getImageStorage(),
   limits: {
     fileSize: parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024 // 5MB default
   },
@@ -69,7 +78,7 @@ export const upload = multer({
 });
 
 export const uploadPdf = multer({
-  storage: getStorage(),
+  storage: getDocumentStorage(),
   limits: {
     fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024 // 10MB for PDFs
   },

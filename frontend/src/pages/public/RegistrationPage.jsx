@@ -15,8 +15,46 @@ import {
   Ticket,
   User
 } from 'lucide-react';
-import api from '../../utils/api';
+import api, { getImageUrl } from '../../utils/api';
 import toast from 'react-hot-toast';
+
+const RAZORPAY_CHECKOUT_SRC = 'https://checkout.razorpay.com/v1/checkout.js';
+
+let razorpayScriptPromise;
+
+const loadRazorpayScript = () => {
+  if (window.Razorpay) return Promise.resolve();
+  if (razorpayScriptPromise) return razorpayScriptPromise;
+
+  razorpayScriptPromise = new Promise((resolve, reject) => {
+    const existingScript = document.querySelector(`script[src="${RAZORPAY_CHECKOUT_SRC}"]`);
+
+    if (existingScript) {
+      existingScript.addEventListener('load', resolve, { once: true });
+      existingScript.addEventListener('error', reject, { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = RAZORPAY_CHECKOUT_SRC;
+    script.async = true;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.body.appendChild(script);
+  });
+
+  return razorpayScriptPromise;
+};
+
+const scheduleIdleTask = (callback) => {
+  if ('requestIdleCallback' in window) {
+    const id = window.requestIdleCallback(callback, { timeout: 3000 });
+    return () => window.cancelIdleCallback?.(id);
+  }
+
+  const id = window.setTimeout(callback, 1200);
+  return () => window.clearTimeout(id);
+};
 
 export default function RegistrationPage() {
   const { id } = useParams();
@@ -51,7 +89,8 @@ export default function RegistrationPage() {
       setForm(formRes.data);
       setTiers(tiersRes.data || []);
       if (tiersRes.data && tiersRes.data.length > 0) {
-        setSelectedTier(tiersRes.data[0]);
+        const firstAvailableTier = tiersRes.data.find((tier) => !tier.capacity || tier.soldCount < tier.capacity);
+        setSelectedTier(firstAvailableTier || null);
       }
     } catch (error) {
       console.error('Error fetching event/form:', error);
@@ -78,8 +117,11 @@ export default function RegistrationPage() {
     }
   };
 
-  const basePriceCents = selectedTier ? selectedTier.priceCents : event?.priceCents || 0;
+  const hasTicketTiers = tiers.length > 0;
+  const noTierAvailable = hasTicketTiers && !selectedTier;
+  const basePriceCents = selectedTier ? selectedTier.priceCents : hasTicketTiers ? 0 : event?.priceCents || 0;
   const basePrice = basePriceCents / 100;
+  const isRsvpEvent = event?.type === 'RSVP';
 
   const calculateTotal = () => {
     if (!event) return 0;
@@ -88,13 +130,13 @@ export default function RegistrationPage() {
     if (appliedDiscount.type === 'PERCENTAGE') {
       return Math.max(0, basePrice * (1 - appliedDiscount.amount / 100));
     }
-    return Math.max(0, basePrice - appliedDiscount.amount);
+    return Math.max(0, basePrice - appliedDiscount.amount / 100);
   };
 
-  const total = calculateTotal();
+  const total = isRsvpEvent ? 0 : calculateTotal();
   const currency = event?.currency || 'INR';
   const fields = form?.schemaJson?.fields || [];
-  const isPaidEvent = basePriceCents > 0;
+  const isPaidEvent = !isRsvpEvent && basePriceCents > 0;
   const formattedDate = event?.startTime
     ? new Intl.DateTimeFormat('en-IN', {
       weekday: 'short',
@@ -105,6 +147,15 @@ export default function RegistrationPage() {
       minute: '2-digit'
     }).format(new Date(event.startTime))
     : 'Date to be announced';
+  const posterImage = getImageUrl(event?.posterUrl);
+
+  useEffect(() => {
+    if (!isPaidEvent || paymentGateway !== 'RAZORPAY' || total <= 0) return undefined;
+
+    return scheduleIdleTask(() => {
+      void loadRazorpayScript().catch(() => {});
+    });
+  }, [isPaidEvent, paymentGateway, total]);
 
   const registerOptions = (field) => ({
     required: field.required,
@@ -119,6 +170,11 @@ export default function RegistrationPage() {
   };
 
   const onSubmit = async (data) => {
+    if (noTierAvailable) {
+      toast.error('No ticket tier is available for this event.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -146,6 +202,13 @@ export default function RegistrationPage() {
       }
 
       const { orderId, amount, currency: checkoutCurrency, keyId } = checkoutData;
+
+      try {
+        await loadRazorpayScript();
+      } catch {
+        toast.error('Payment gateway could not load. Please check your connection and try again.');
+        return;
+      }
 
       if (typeof window.Razorpay === 'undefined') {
         toast.error('Payment gateway not loaded. Please refresh the page.');
@@ -254,7 +317,7 @@ export default function RegistrationPage() {
           <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-[#12100e]/85 shadow-[0_24px_90px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
             <div
               className="relative min-h-[260px] bg-[#161111] bg-cover bg-center"
-              style={event.posterUrl ? { backgroundImage: `url(${event.posterUrl})` } : undefined}
+              style={posterImage ? { backgroundImage: `url(${posterImage})` } : undefined}
             >
               <div className="absolute inset-0 bg-gradient-to-t from-[#12100e] via-[#12100e]/45 to-black/20" />
               <div className="absolute bottom-0 left-0 right-0 p-6">
@@ -282,7 +345,7 @@ export default function RegistrationPage() {
 
               <div className="rounded-[1.5rem] border border-[#E23744]/25 bg-[#E23744]/10 p-5">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ff7b84]">Amount due</p>
-                <p className="mt-2 text-4xl font-black text-white">{total === 0 ? 'Free' : `${currency} ${total.toFixed(2)}`}</p>
+                <p className="mt-2 text-4xl font-black text-white">{noTierAvailable ? 'Sold out' : total === 0 ? 'Free' : `${currency} ${total.toFixed(2)}`}</p>
                 {selectedTier && <p className="mt-2 text-sm text-[#aaa096]">Selected tier: {selectedTier.name}</p>}
               </div>
 
@@ -380,34 +443,43 @@ export default function RegistrationPage() {
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   {tiers.map((tier) => (
-                    <label
-                      key={tier.id}
-                      className={`relative cursor-pointer rounded-[1.35rem] border p-4 transition-all ${selectedTier?.id === tier.id
-                        ? 'border-[#E23744] bg-[#E23744]/10 shadow-[0_18px_45px_rgba(226,55,68,0.12)]'
-                        : 'border-white/10 bg-white/[0.035] hover:border-white/25'
-                        }`}
-                    >
-                      <input
-                        type="radio"
-                        name="ticketTier"
-                        value={tier.id}
-                        className="sr-only"
-                        onChange={() => setSelectedTier(tier)}
-                        checked={selectedTier?.id === tier.id}
-                      />
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className="font-black text-white">{tier.name}</p>
-                          {tier.description && <p className="mt-1 text-sm text-[#8f867d]">{tier.description}</p>}
-                        </div>
-                        <p className="shrink-0 text-lg font-black text-[#ff5a66]">₹{(tier.priceCents / 100).toFixed(0)}</p>
-                      </div>
-                      {tier.capacity && (
-                        <p className="mt-3 text-xs font-bold uppercase tracking-[0.16em] text-[#8f867d]">
-                          {Math.max(0, tier.capacity - tier.soldCount)} remaining
-                        </p>
-                      )}
-                    </label>
+                    (() => {
+                      const soldOut = Boolean(tier.capacity && tier.soldCount >= tier.capacity);
+
+                      return (
+                        <label
+                          key={tier.id}
+                          className={`relative rounded-[1.35rem] border p-4 transition-all ${soldOut
+                            ? 'cursor-not-allowed border-white/5 bg-white/[0.02] opacity-55'
+                            : selectedTier?.id === tier.id
+                              ? 'cursor-pointer border-[#E23744] bg-[#E23744]/10 shadow-[0_18px_45px_rgba(226,55,68,0.12)]'
+                              : 'cursor-pointer border-white/10 bg-white/[0.035] hover:border-white/25'
+                            }`}
+                        >
+                          <input
+                            type="radio"
+                            name="ticketTier"
+                            value={tier.id}
+                            className="sr-only"
+                            disabled={soldOut}
+                            onChange={() => !soldOut && setSelectedTier(tier)}
+                            checked={selectedTier?.id === tier.id}
+                          />
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <p className="font-black text-white">{tier.name}</p>
+                              {tier.description && <p className="mt-1 text-sm text-[#8f867d]">{tier.description}</p>}
+                            </div>
+                            <p className="shrink-0 text-lg font-black text-[#ff5a66]">₹{(tier.priceCents / 100).toFixed(0)}</p>
+                          </div>
+                          {tier.capacity && (
+                            <p className={`mt-3 text-xs font-bold uppercase tracking-[0.16em] ${soldOut ? 'text-[#ff5a66]' : 'text-[#8f867d]'}`}>
+                              {soldOut ? 'Sold out' : `${Math.max(0, tier.capacity - tier.soldCount)} remaining`}
+                            </p>
+                          )}
+                        </label>
+                      );
+                    })()
                   ))}
                 </div>
               </section>
@@ -485,7 +557,7 @@ export default function RegistrationPage() {
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || noTierAvailable}
               className="flex w-full items-center justify-center gap-3 rounded-full bg-[#E23744] px-6 py-4 text-base font-black text-white shadow-[0_18px_45px_rgba(226,55,68,0.25)] transition-all hover:-translate-y-0.5 hover:bg-[#f04552] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
             >
               {submitting ? (
@@ -495,7 +567,7 @@ export default function RegistrationPage() {
                 </>
               ) : (
                 <>
-                  {total === 0 ? 'Complete registration' : `Pay ${currency} ${total.toFixed(2)}`}
+                  {noTierAvailable ? 'Sold out' : total === 0 ? 'Complete registration' : `Pay ${currency} ${total.toFixed(2)}`}
                   <ArrowRight size={19} />
                 </>
               )}

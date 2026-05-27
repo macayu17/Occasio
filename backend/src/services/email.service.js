@@ -22,25 +22,52 @@ async function fetchPdfAsBuffer(url) {
   }
 }
 
-// Create transporter
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT),
-  secure: false,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
-  }
-});
+let transporter = null;
+let verificationStarted = false;
 
-// Verify transporter
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('❌ Email transporter error:', error);
-  } else {
-    console.log('✅ Email server is ready');
+const isPresent = (value) => typeof value === 'string' && value.trim().length > 0;
+
+export function isEmailDeliveryConfigured() {
+  return Boolean(
+    isPresent(process.env.SMTP_HOST) &&
+    isPresent(process.env.SMTP_PORT) &&
+    isPresent(process.env.SMTP_USER) &&
+    isPresent(process.env.SMTP_PASS)
+  );
+}
+
+function getTransporter() {
+  if (!isEmailDeliveryConfigured()) {
+    const error = new Error('SMTP is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS.');
+    error.statusCode = 503;
+    throw error;
   }
-});
+
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT, 10),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
+  }
+
+  if (!verificationStarted) {
+    verificationStarted = true;
+    transporter.verify((error) => {
+      if (error) {
+        console.error('Email transporter error:', error.message);
+      } else {
+        console.log('Email server is ready');
+      }
+    });
+  }
+
+  return transporter;
+}
 
 export async function sendTicketEmail(ticketId, email) {
   try {
@@ -92,7 +119,7 @@ export async function sendTicketEmail(ticketId, email) {
       attachments
     };
 
-    const info = await transporter.sendMail(mailOptions);
+    const info = await getTransporter().sendMail(mailOptions);
     console.log('Email sent:', info.messageId);
 
     return info;
@@ -170,12 +197,12 @@ function generateEmailHTML(event, attendee, ticket) {
         <h1>🎉 Your Ticket is Ready!</h1>
         <p>Get ready for an amazing experience</p>
       </div>
-      
+
       <div class="content">
         <p>Hi ${attendee.name || 'there'},</p>
-        
+
         <p>Thank you for registering! Your ticket for <strong>${event.title}</strong> has been confirmed.</p>
-        
+
         <div class="event-details">
           <h3>Event Details</h3>
           <div class="detail-row">
@@ -195,11 +222,11 @@ function generateEmailHTML(event, attendee, ticket) {
             <span>${ticket.id.substring(0, 8).toUpperCase()}</span>
           </div>
         </div>
-        
+
         <p><strong>Important:</strong> Your ticket is attached to this email as a PDF. Please download and save it. You'll need to present the QR code at the venue entrance.</p>
-        
+
         <p style="margin-top: 30px;">We look forward to seeing you at the event!</p>
-        
+
         <div class="footer">
           <p>If you have any questions, please contact us at support@eventmanagement.com</p>
           <p style="margin-top: 10px;">This is an automated email. Please do not reply to this message.</p>
@@ -222,7 +249,7 @@ export async function sendWelcomeEmail(email, name) {
     `
   };
 
-  return transporter.sendMail(mailOptions);
+  return getTransporter().sendMail(mailOptions);
 }
 
 export async function sendCustomEmail(to, subject, html) {
@@ -233,12 +260,12 @@ export async function sendCustomEmail(to, subject, html) {
     html: html
   };
 
-  return transporter.sendMail(mailOptions);
+  return getTransporter().sendMail(mailOptions);
 }
 
 export async function sendCertificateEmail(toEmail, userName, eventName, pdfBuffer, certificateType = 'Participation') {
   try {
-    await transporter.sendMail({
+    await getTransporter().sendMail({
       from: `"Occasio Events" <${process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || 'noreply@occasio.io'}>`,
       to: toEmail,
       subject: `Certificate of ${certificateType} - ${eventName}`,

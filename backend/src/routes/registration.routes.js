@@ -4,7 +4,14 @@ import addFormats from 'ajv-formats';
 import crypto from 'crypto';
 import prisma from '../config/db.js';
 import { createRazorpayOrder, createPhonePePayment, checkPhonePePaymentStatus } from '../services/payment.service.js';
-import { enqueueTicketGeneration } from '../services/queue.service.js';
+import { completePaidOrder, mergePaymentData } from '../services/order-completion.service.js';
+import {
+  buildTicketTierSnapshot,
+  calculateDiscountedAmountCents,
+  isDiscountUsable,
+  normalizeDiscountCode,
+  resolveSelectedTicketTier
+} from '../utils/registration-pricing.util.js';
 
 const router = express.Router();
 const ajv = new Ajv();
@@ -14,13 +21,19 @@ addFormats(ajv);
 router.post('/events/:id/register', async (req, res) => {
   try {
     const { id } = req.params;
-    const { formResponse, discountCode, paymentGateway } = req.body;
+    const { formResponse, discountCode, paymentGateway, tierId } = req.body;
     const selectedGateway = paymentGateway === 'PHONEPE' ? 'PHONEPE' : 'RAZORPAY';
 
     // Get event and form
     const event = await prisma.event.findUnique({
       where: { id },
-      include: { form: true }
+      include: {
+        form: true,
+        ticketTiers: {
+          where: { isActive: true },
+          orderBy: { sortOrder: 'asc' }
+        }
+      }
     });
 
     if (!event) {
@@ -30,6 +43,25 @@ router.post('/events/:id/register', async (req, res) => {
     if (!event.published) {
       return res.status(400).json({ error: 'Event is not published' });
     }
+
+    if (event.capacity > 0) {
+      const reservedCount = await prisma.registration.count({
+        where: {
+          eventId: id,
+          status: { not: 'CANCELLED' }
+        }
+      });
+
+      if (reservedCount >= event.capacity) {
+        return res.status(409).json({ error: 'Event is sold out' });
+      }
+    }
+
+    const tierSelection = resolveSelectedTicketTier(event.ticketTiers, tierId);
+    if (tierSelection.error) {
+      return res.status(tierSelection.statusCode).json({ error: tierSelection.error });
+    }
+    const selectedTier = tierSelection.selectedTier;
 
     // Get form schema - use default if no custom form exists
     let formSchema;
@@ -76,28 +108,25 @@ router.post('/events/:id/register', async (req, res) => {
     });
 
     // Calculate Amount & Validate Discount
-    let amountCents = event.priceCents;
+    const baseAmountCents = selectedTier ? selectedTier.priceCents : event.priceCents;
+    let amountCents = baseAmountCents;
     let validDiscount = null;
 
-    if (discountCode && event.priceCents > 0) {
+    const normalizedDiscountCode = normalizeDiscountCode(discountCode);
+
+    if (normalizedDiscountCode && baseAmountCents > 0) {
       const code = await prisma.discountCode.findUnique({
-        where: { eventId_code: { eventId: id, code: discountCode } }
+        where: { eventId_code: { eventId: id, code: normalizedDiscountCode } }
       });
 
-      if (code && code.isActive) {
-        const now = new Date();
-        if ((!code.validFrom || code.validFrom <= now) &&
-          (!code.validUntil || code.validUntil >= now) &&
-          (!code.maxUses || code.usedCount < code.maxUses)) {
-
-          validDiscount = code;
-          if (code.type === 'PERCENTAGE') {
-            amountCents = Math.max(0, Math.round(event.priceCents * (1 - code.amount / 100)));
-          } else {
-            amountCents = Math.max(0, event.priceCents - code.amount);
-          }
-        }
+      if (isDiscountUsable(code)) {
+        validDiscount = code;
+        amountCents = calculateDiscountedAmountCents(baseAmountCents, code);
       }
+    }
+
+    if (event.type === 'RSVP') {
+      amountCents = 0;
     }
 
     // Create order with selected payment gateway
@@ -108,7 +137,8 @@ router.post('/events/:id/register', async (req, res) => {
         currency: event.currency,
         provider: selectedGateway,
         status: 'CREATED',
-        discountCodeId: validDiscount ? validDiscount.id : undefined
+        discountCodeId: validDiscount ? validDiscount.id : undefined,
+        paymentData: buildTicketTierSnapshot(selectedTier)
       }
     });
 
@@ -116,29 +146,11 @@ router.post('/events/:id/register', async (req, res) => {
     if (amountCents === 0 || event.type === 'RSVP') {
       const regStatus = event.type === 'RSVP' ? 'CONFIRMED' : 'PAID';
 
-      await prisma.order.update({
-        where: { id: order.id },
-        data: { status: 'PAID' }
-      });
-
-      await prisma.registration.update({
-        where: { id: registration.id },
-        data: { status: regStatus }
-      });
-
-      if (validDiscount) {
-        await prisma.discountCode.update({
-          where: { id: validDiscount.id },
-          data: { usedCount: { increment: 1 } }
-        });
-      }
-
-      // Generate ticket
-      await enqueueTicketGeneration(order.id);
+      const completion = await completePaidOrder(order.id, {}, { registrationStatus: regStatus });
 
       return res.json({
-        registration,
-        order,
+        registration: { ...registration, status: regStatus },
+        order: completion.order,
         requiresPayment: false
       });
     }
@@ -154,7 +166,7 @@ router.post('/events/:id/register', async (req, res) => {
       message: error.message,
       stack: error.stack
     });
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       error: 'Registration failed',
       message: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -196,7 +208,9 @@ router.post('/orders/:id/create-checkout-session', async (req, res) => {
         where: { id },
         data: {
           providerOrderId: phonePeResponse.transactionId,
-          paymentData: { transactionId: phonePeResponse.transactionId }
+          paymentData: mergePaymentData(order.paymentData, {
+            phonePe: { transactionId: phonePeResponse.transactionId }
+          })
         }
       });
 
@@ -215,7 +229,9 @@ router.post('/orders/:id/create-checkout-session', async (req, res) => {
       where: { id },
       data: {
         providerOrderId: paymentOrder.id,
-        paymentData: paymentOrder
+        paymentData: mergePaymentData(order.paymentData, {
+          razorpayOrder: paymentOrder
+        })
       }
     });
 
@@ -228,7 +244,10 @@ router.post('/orders/:id/create-checkout-session', async (req, res) => {
     });
   } catch (error) {
     console.error('Create checkout session error:', error);
-    res.status(500).json({ error: 'Failed to create checkout session' });
+    res.status(error.statusCode || 500).json({
+      error: error.statusCode ? error.message : 'Failed to create checkout session',
+      ...(error.gatewayCode ? { gatewayCode: error.gatewayCode } : {})
+    });
   }
 });
 
@@ -254,31 +273,9 @@ router.post('/orders/:id/verify-phonepe', async (req, res) => {
     const statusResponse = await checkPhonePePaymentStatus(order.providerOrderId);
 
     if (statusResponse.success && statusResponse.paymentState === 'COMPLETED') {
-      // Update order status
-      await prisma.order.update({
-        where: { id },
-        data: {
-          status: 'PAID',
-          paymentData: statusResponse
-        }
+      await completePaidOrder(order.id, {
+        phonePeStatus: statusResponse
       });
-
-      // Update registration status
-      await prisma.registration.update({
-        where: { id: order.registrationId },
-        data: { status: 'PAID' }
-      });
-
-      // Increment discount usage if applicable
-      if (order.discountCodeId) {
-        await prisma.discountCode.update({
-          where: { id: order.discountCodeId },
-          data: { usedCount: { increment: 1 } }
-        });
-      }
-
-      // Enqueue ticket generation
-      await enqueueTicketGeneration(order.id);
 
       return res.json({
         success: true,
@@ -295,7 +292,9 @@ router.post('/orders/:id/verify-phonepe', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Payment failed', state: statusResponse.paymentState });
   } catch (error) {
     console.error('PhonePe verification error:', error);
-    res.status(500).json({ error: 'Failed to verify PhonePe payment' });
+    res.status(error.statusCode || 500).json({
+      error: error.statusCode ? error.message : 'Failed to verify PhonePe payment'
+    });
   }
 });
 
@@ -329,40 +328,20 @@ router.post('/orders/:id/verify-payment', async (req, res) => {
       return res.status(400).json({ error: 'Invalid payment signature' });
     }
 
-    // Update order status
-    await prisma.order.update({
-      where: { id },
-      data: {
-        status: 'PAID',
-        paymentData: {
-          razorpay_payment_id,
-          razorpay_order_id,
-          razorpay_signature
-        }
+    await completePaidOrder(order.id, {
+      razorpayPayment: {
+        razorpay_payment_id,
+        razorpay_order_id,
+        razorpay_signature
       }
     });
-
-    // Update registration status
-    await prisma.registration.update({
-      where: { id: order.registrationId },
-      data: { status: 'PAID' }
-    });
-
-    // Increment discount usage if applicable
-    if (order.discountCodeId) {
-      await prisma.discountCode.update({
-        where: { id: order.discountCodeId },
-        data: { usedCount: { increment: 1 } }
-      });
-    }
-
-    // Enqueue ticket generation
-    await enqueueTicketGeneration(order.id);
 
     res.json({ success: true, message: 'Payment verified successfully' });
   } catch (error) {
     console.error('Verify payment error:', error);
-    res.status(500).json({ error: 'Failed to verify payment' });
+    res.status(error.statusCode || 500).json({
+      error: error.statusCode ? error.message : 'Failed to verify payment'
+    });
   }
 });
 

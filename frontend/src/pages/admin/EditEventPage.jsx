@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { Suspense, lazy, useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import api, { getImageUrl } from '../../utils/api';
 import toast from 'react-hot-toast';
 import { Upload, Settings, Award } from 'lucide-react';
 import { format } from 'date-fns';
-import CertificateDesigner from '../../components/CertificateDesigner';
+
+const CertificateDesigner = lazy(() => import('../../components/CertificateDesigner'));
 
 export default function EditEventPage() {
   const { id } = useParams();
@@ -24,7 +25,7 @@ export default function EditEventPage() {
 
   const fetchEvent = async () => {
     try {
-      const response = await api.get(`/events/${id}`);
+      const response = await api.get(`/admin/events/${id}`);
       const event = response.data;
       setEventData(event);
 
@@ -101,7 +102,7 @@ export default function EditEventPage() {
   return (
     <div className="max-w-4xl mx-auto pb-20">
       <h1 className="text-3xl font-bold text-white mb-6">Edit Event</h1>
-      
+
       {/* Navigation Tabs */}
       <div className="mb-8">
         <div className="flex bg-gray-800 rounded-lg p-1 w-fit">
@@ -127,14 +128,20 @@ export default function EditEventPage() {
       </div>
 
       {activeTab === 'certificate' ? (
-        <CertificateDesigner 
-          eventId={id} 
-          initialConfig={{
-            templateUrl: eventData?.certificateTemplateUrl,
-            mapping: eventData?.certificateMapping
-          }}
-          onSave={fetchEvent}
-        />
+        <Suspense fallback={
+          <div className="card flex min-h-[240px] items-center justify-center text-gray-400">
+            Loading certificate studio...
+          </div>
+        }>
+          <CertificateDesigner
+            eventId={id}
+            initialConfig={{
+              templateUrl: eventData?.certificateTemplateUrl,
+              mapping: eventData?.certificateMapping
+            }}
+            onSave={fetchEvent}
+          />
+        </Suspense>
       ) : (
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div className="card">

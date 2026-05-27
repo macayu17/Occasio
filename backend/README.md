@@ -7,11 +7,11 @@ Backend API for Event Management and Booking System built with Node.js, Express,
 - 🔐 JWT Authentication
 - 📅 Event Management (CRUD)
 - 📝 Custom Registration Forms
-- 💳 Payment Integration (Razorpay/Stripe)
+- 💳 Payment Integration (Razorpay + PhonePe; Stripe remains a legacy placeholder)
 - 🎟️ QR Ticket Generation
 - 📧 Email Notifications
 - 🔄 Background Job Processing
-- ☁️ AWS S3 Integration
+- ☁️ Cloudflare R2 primary PDF storage with Cloudinary fallback
 
 ## Tech Stack
 
@@ -20,11 +20,11 @@ Backend API for Event Management and Booking System built with Node.js, Express,
 - **Database**: PostgreSQL
 - **ORM**: Prisma
 - **Queue**: BullMQ + Redis
-- **Payment**: Razorpay
+- **Payment**: Razorpay + PhonePe
 - **Email**: Nodemailer
-- **PDF Generation**: Puppeteer
+- **PDF Generation**: PDFKit + pdf-lib
 - **QR Code**: qrcode
-- **Storage**: AWS S3
+- **Storage**: Cloudflare R2, Cloudinary fallback, local uploads for development
 
 ## Setup
 
@@ -93,6 +93,7 @@ See `.env.example` for all required environment variables.
 
 ### Webhooks
 - `POST /api/webhooks/payments` - Razorpay webhook
+- `POST /api/orders/:id/verify-phonepe` - PhonePe redirect verification
 
 ### Tickets
 - `POST /api/tickets/verify` - Verify ticket QR code
@@ -141,9 +142,9 @@ npm run prisma:migrate
 1. Set `NODE_ENV=production`
 2. Configure production database
 3. Set up Redis instance
-4. Configure AWS S3
-5. Set up payment gateway webhooks
-6. Deploy to your preferred platform (AWS, Render, Railway, etc.)
+4. Configure Cloudflare R2 for generated PDF assets and Cloudinary as fallback
+5. Set up Razorpay and PhonePe credentials/webhooks as needed. Sandbox PhonePe uses Standard Checkout V2 credentials: `PHONEPE_CLIENT_ID`, `PHONEPE_CLIENT_SECRET`, and `PHONEPE_CLIENT_VERSION`; no gateway credentials are hardcoded in the app.
+6. Deploy to Azure App Service
 
 ## License
 

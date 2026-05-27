@@ -106,7 +106,7 @@ SMTP_USER=your_gmail@gmail.com
 SMTP_PASS=your_app_password
 ```
 
-### Payment Gateway (Razorpay)
+### Payment Gateways (Razorpay and PhonePe)
 1. Sign up at https://razorpay.com
 2. Get your API keys
 3. Update in `backend/.env`:
@@ -117,6 +117,14 @@ RAZORPAY_KEY_SECRET=your_key_secret
 4. Update in `frontend/.env`:
 ```
 VITE_RAZORPAY_KEY_ID=your_key_id
+```
+5. For PhonePe, add your sandbox or production credentials in `backend/.env`:
+```
+PHONEPE_CLIENT_ID=your_client_id
+PHONEPE_CLIENT_SECRET=your_client_secret
+PHONEPE_CLIENT_VERSION=1
+PHONEPE_SALT_INDEX=1
+PHONEPE_ENV=sandbox
 ```
 
 ### Background Jobs (Redis)

@@ -11,13 +11,14 @@ router.post('/validate', [
     body('code').notEmpty()
 ], async (req, res) => {
     const { eventId, code } = req.body;
+    const normalizedCode = String(code || '').trim().toUpperCase();
 
     try {
         const discount = await prisma.discountCode.findUnique({
             where: {
                 eventId_code: {
                     eventId,
-                    code
+                    code: normalizedCode
                 }
             }
         });
@@ -71,8 +72,11 @@ router.post('/events/:eventId', [
     try {
         const { eventId } = req.params;
         const { code, type, amount, maxUses, validFrom, validUntil } = req.body;
+        const parsedAmount = parseInt(amount, 10);
+        const storedAmount = type === 'FIXED_AMOUNT' ? parsedAmount * 100 : parsedAmount;
 
         const event = await prisma.event.findUnique({ where: { id: eventId } });
+        if (!event) return res.status(404).json({ error: 'Event not found' });
         if (event.organizerId !== req.user.id && req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Unauthorized' });
 
         const newCode = await prisma.discountCode.create({
@@ -80,7 +84,7 @@ router.post('/events/:eventId', [
                 eventId,
                 code,
                 type,
-                amount: parseInt(amount, 10),
+                amount: storedAmount,
                 maxUses: maxUses ? parseInt(maxUses, 10) : null,
                 validFrom: validFrom ? new Date(validFrom) : null,
                 validUntil: validUntil ? new Date(validUntil) : null

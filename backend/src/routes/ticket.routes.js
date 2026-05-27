@@ -260,11 +260,11 @@ router.post('/verify', authenticateToken, async (req, res) => {
     );
 
     const isDev = process.env.NODE_ENV !== 'production';
+    const allowUnsignedScan = process.env.ALLOW_UNSIGNED_TICKET_SCAN === 'true';
     const hasValidHmac = payload ? verifyQRSignature(payload) : false;
-    // In dev mode ALWAYS valid; in production accept any valid fallback
-    const isValid = isDev ? true : (hasValidHmac || matchesStoredPayload || matchesTicketIdentity);
+    const isValid = isDev ? true : (hasValidHmac || matchesStoredPayload || (allowUnsignedScan && matchesTicketIdentity));
 
-    debugTicketVerify('[verify] Sig check:', { isDev, hasValidHmac, matchesStoredPayload, matchesTicketIdentity, isValid });
+    debugTicketVerify('[verify] Sig check:', { isDev, allowUnsignedScan, hasValidHmac, matchesStoredPayload, matchesTicketIdentity, isValid });
 
     if (!isValid) {
       return res.status(400).json({

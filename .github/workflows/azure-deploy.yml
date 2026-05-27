@@ -13,6 +13,13 @@ env:
   AZURE_WEBAPP_NAME: occasio
   NODE_VERSION: '20.x'
 
+permissions:
+  contents: read
+
+concurrency:
+  group: azure-app-service-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -30,11 +37,15 @@ jobs:
 
     - name: Install dependencies
       working-directory: ./backend
-      run: npm install
+      run: npm ci
 
     - name: Generate Prisma Client
       working-directory: ./backend
       run: npx prisma generate
+
+    - name: Run backend tests
+      working-directory: ./backend
+      run: npm test
 
     - name: Zip artifact for deployment
       run: |

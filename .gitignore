@@ -1,0 +1,7 @@
+# Local runtime artifacts
+artifacts/
+*.pdf
+goal.md
+generate_interview_prep_pdf.py
+backend/tmp-local-*.pid
+frontend/tmp-local-*.pid

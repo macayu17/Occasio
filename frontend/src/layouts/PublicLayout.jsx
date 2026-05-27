@@ -1,8 +1,6 @@
 import { Outlet, Link } from 'react-router-dom';
 import { Menu, X, Ticket } from 'lucide-react';
-import { Suspense, lazy, useEffect, useState } from 'react';
-
-const FloatingLines = lazy(() => import('../components/FloatingLines'));
+import { useEffect, useState } from 'react';
 
 export default function PublicLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -28,24 +26,9 @@ export default function PublicLayout() {
 
       {/* --- Universal Dynamic Background --- */}
       <div className="fixed inset-0 w-full h-full pointer-events-none z-0">
-        {/* Floating Lines */}
-        <div className="absolute inset-0 opacity-30">
-          <Suspense fallback={null}>
-            <FloatingLines
-              linesGradient={['#333333', '#111111', '#E23744', '#1a1a1a']}
-              enabledWaves={['top', 'bottom']}
-              lineCount={[6, 8]}
-              lineDistance={[10, 15]}
-              animationSpeed={0.3}
-              interactive={true}
-              mixBlendMode="lighten"
-            />
-          </Suspense>
-        </div>
-
-        {/* Ambient Gradient Orbs */}
-        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-purple-900/10 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-[#E23744]/10 rounded-full blur-[120px]" />
+        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(226,55,68,0.08),transparent_28%,rgba(255,255,255,0.035)_52%,transparent_72%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(226,55,68,0.10),transparent_34rem)] opacity-80" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.018)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.018)_1px,transparent_1px)] bg-[size:64px_64px]" />
       </div>
 
       {/* Premium Glass Header */}

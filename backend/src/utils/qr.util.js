@@ -1,7 +1,18 @@
 import crypto from 'crypto';
 
-// Default secret key if not configured - CHANGE IN PRODUCTION!
-const QR_SECRET = process.env.QR_SECRET_KEY || 'default-qr-secret-key-change-me';
+const DEVELOPMENT_QR_SECRET = 'development-only-qr-secret';
+
+function getQRSecret() {
+  if (process.env.QR_SECRET_KEY) {
+    return process.env.QR_SECRET_KEY;
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('QR_SECRET_KEY is required in production');
+  }
+
+  return DEVELOPMENT_QR_SECRET;
+}
 
 export function generateQRPayload(data) {
   // ticketId is required!
@@ -35,7 +46,7 @@ export function generateQRSignature(payload) {
   });
 
   return crypto
-    .createHmac('sha256', QR_SECRET)
+    .createHmac('sha256', getQRSecret())
     .update(data)
     .digest('hex');
 }

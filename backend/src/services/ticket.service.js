@@ -83,6 +83,78 @@ const COLORS = {
   accent: [99, 102, 241], // Indigo
 };
 
+const safeDate = (value) => {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? new Date() : date;
+};
+
+const formatCurrency = (amountCents = 0, currency = 'INR') => {
+  const amount = Number(amountCents || 0) / 100;
+  const fractionDigits = Number.isInteger(amount) ? 0 : 2;
+
+  if (currency === 'INR') {
+    return `INR ${amount.toFixed(fractionDigits)}`;
+  }
+
+  try {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    }).format(amount);
+  } catch {
+    return `${currency} ${amount.toFixed(fractionDigits)}`;
+  }
+};
+
+const getTicketTier = (paymentData) => {
+  if (!paymentData || typeof paymentData !== 'object' || Array.isArray(paymentData)) return null;
+  return paymentData.ticketTier && typeof paymentData.ticketTier === 'object'
+    ? paymentData.ticketTier
+    : null;
+};
+
+export function buildTicketRenderModel(order, ticket) {
+  const event = order.registration.event;
+  const attendee = order.registration.formResponse || {};
+  const ticketTier = getTicketTier(order.paymentData);
+  const eventDate = safeDate(event.startTime);
+  const issuedAt = safeDate(ticket.issuedAt);
+
+  return {
+    brand: 'Occasio',
+    passType: 'ADMIT ONE',
+    eventTitle: event.title || 'Event Ticket',
+    dateLabel: eventDate.toLocaleDateString('en-IN', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }).replace(/,\s*(\d{4})$/, ' $1'),
+    timeLabel: eventDate.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit'
+    }),
+    venue: event.location || 'Venue TBA',
+    attendeeName: attendee.name || 'Guest',
+    attendeeEmail: attendee.email || order.registration.userEmail || '-',
+    attendeePhone: attendee.phone || attendee.phoneNumber || '',
+    ticketCode: ticket.id.substring(0, 8).toUpperCase(),
+    ticketId: ticket.id,
+    orderCode: order.id.substring(0, 8).toUpperCase(),
+    tierName: ticketTier?.name || (Number(order.amountCents || 0) === 0 ? 'Free Pass' : 'General Admission'),
+    priceLabel: Number(order.amountCents || 0) === 0
+      ? 'Free'
+      : formatCurrency(order.amountCents, order.currency || event.currency || 'INR'),
+    issuedLabel: issuedAt.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }),
+  };
+}
+
 // ============== HELPER FUNCTIONS ==============
 const hexToRgb = (hex) => {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -187,8 +259,8 @@ export async function createTicketRecord(order) {
 // ============== PREMIUM TICKET DESIGN ==============
 async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
   const event = order.registration.event;
-  const attendee = order.registration.formResponse || {};
   const ticketStyle = event.ticketStyle || {};
+  const model = buildTicketRenderModel(order, ticket);
 
   const allowedFonts = ['Helvetica', 'Times-Roman', 'Courier'];
   const requestedFont = ticketStyle.fontFamily || 'Helvetica';
@@ -196,44 +268,71 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
   const fontBold = fontFamily === 'Times-Roman' ? 'Times-Bold' :
     fontFamily === 'Courier' ? 'Courier-Bold' : 'Helvetica-Bold';
 
-  const primaryColor = ticketStyle.primaryColor ? hexToRgb(ticketStyle.primaryColor) : [226, 55, 68];
-  const accentColor = ticketStyle.accentColor ? hexToRgb(ticketStyle.accentColor) : [255, 248, 238];
-  const bgColor = ticketStyle.backgroundColor ? hexToRgb(ticketStyle.backgroundColor) : [8, 8, 10];
-  const muted = [148, 145, 155];
-  const panel = [22, 21, 27];
-  const panelSoft = [30, 28, 36];
+  const primaryColor = ticketStyle.primaryColor || '#E23744';
+  const primaryRgb = hexToRgb(primaryColor);
+  const ink = '#16110f';
+  const paper = '#f6eee3';
+  const cream = '#fff9ef';
+  const muted = '#7e746b';
+  const line = '#e7d8c6';
+  const dark = '#0b0b0d';
   const showQR = ticketStyle.showQR !== false;
   const showLogo = ticketStyle.showLogo !== false;
   const posterImage = await fetchImage(event.posterUrl || ticketStyle.headerImage);
 
-  doc.rect(0, 0, TICKET_WIDTH, TICKET_HEIGHT).fill(bgColor);
-  doc.save();
-  doc.opacity(0.16);
-  doc.circle(70, 80, 180).fill(primaryColor);
-  doc.circle(TICKET_WIDTH - 70, 300, 150).fill([255, 255, 255]);
+  doc.rect(0, 0, TICKET_WIDTH, TICKET_HEIGHT).fill(paper);
+  doc.save().opacity(0.16);
+  doc.circle(82, 104, 190).fill(primaryColor);
+  doc.circle(TICKET_WIDTH - 30, TICKET_HEIGHT - 80, 210).fill('#d9c6b1');
   doc.restore();
-  drawPattern(doc, 0, 0, TICKET_WIDTH, TICKET_HEIGHT, COLORS.white);
+  drawPattern(doc, 0, 0, TICKET_WIDTH, TICKET_HEIGHT, '#7d6a59');
 
-  const cardX = 58;
-  const cardY = 54;
-  const cardWidth = TICKET_WIDTH - 116;
-  const cardHeight = 704;
-  const radius = 28;
+  const cardX = 42;
+  const cardY = 42;
+  const cardWidth = TICKET_WIDTH - 84;
+  const cardHeight = 758;
+  const radius = 30;
 
-  drawRoundedRect(doc, cardX + 8, cardY + 10, cardWidth, cardHeight, radius, [0, 0, 0]);
+  drawRoundedRect(doc, cardX + 8, cardY + 10, cardWidth, cardHeight, radius, '#d9cbb9');
+  drawRoundedRect(doc, cardX, cardY, cardWidth, cardHeight, radius, cream);
+  drawRoundedRect(doc, cardX + 1.5, cardY + 1.5, cardWidth - 3, cardHeight - 3, radius - 2, null, { color: primaryRgb, width: 1.5 });
+
+  const bandW = 68;
   doc.save();
-  doc.opacity(0.86);
-  drawRoundedRect(doc, cardX, cardY, cardWidth, cardHeight, radius, panel);
+  drawRoundedRect(doc, cardX, cardY, bandW, cardHeight, radius, dark);
+  doc.clip();
+  doc.rect(cardX + bandW - 22, cardY, 22, cardHeight).fill(primaryColor);
   doc.restore();
-  drawRoundedRect(doc, cardX + 1.5, cardY + 1.5, cardWidth - 3, cardHeight - 3, radius - 2, null, { color: primaryColor, width: 1.8 });
+  doc.save();
+  doc.rotate(-90, { origin: [cardX + 34, cardY + cardHeight / 2] });
+  doc.font(fontBold).fontSize(17).fillColor('#fff7eb')
+    .text(model.brand.toUpperCase(), cardX - 278, cardY + cardHeight / 2 - 8, {
+      width: 560,
+      align: 'center',
+      characterSpacing: 5
+    });
+  doc.restore();
 
-  const heroX = cardX + 22;
-  const heroY = cardY + 24;
-  const heroW = cardWidth - 44;
-  const heroH = 210;
+  const contentX = cardX + bandW + 26;
+  const contentY = cardY + 28;
+  const contentW = cardWidth - bandW - 52;
+
+  doc.font(fontBold).fontSize(9).fillColor(primaryColor)
+    .text(model.passType, contentX, contentY, { characterSpacing: 2.8 });
+  doc.font(fontBold).fontSize(10).fillColor(muted)
+    .text(model.ticketCode, contentX + contentW - 110, contentY, {
+      width: 110,
+      align: 'right',
+      characterSpacing: 1.3
+    });
+
+  const heroX = contentX;
+  const heroY = contentY + 30;
+  const heroW = contentW;
+  const heroH = 238;
 
   doc.save();
-  drawRoundedRect(doc, heroX, heroY, heroW, heroH, 20, [12, 12, 16]);
+  drawRoundedRect(doc, heroX, heroY, heroW, heroH, 24, '#1b1513');
   doc.clip();
   if (posterImage) {
     try {
@@ -243,116 +342,170 @@ async function drawPremiumTicket(doc, ticket, order, qrCodeBuffer) {
         valign: 'center'
       });
     } catch {
-      doc.rect(heroX, heroY, heroW, heroH).fill(panelSoft);
+      doc.rect(heroX, heroY, heroW, heroH).fill('#231d1a');
     }
   } else {
-    doc.rect(heroX, heroY, heroW, heroH).fill(panelSoft);
+    doc.rect(heroX, heroY, heroW, heroH).fill('#231d1a');
   }
   doc.save();
-  doc.opacity(0.62);
+  doc.opacity(0.58);
   doc.rect(heroX, heroY, heroW, heroH).fill([0, 0, 0]);
   doc.restore();
+  doc.save().opacity(0.3);
+  doc.rect(heroX, heroY + heroH - 92, heroW, 92).fill(primaryColor);
+  doc.restore();
   doc.restore();
 
-  doc.font(fontBold).fontSize(9).fillColor(primaryColor)
-    .text('EVENT PASS', heroX + 22, heroY + 24, { characterSpacing: 1.6 });
-  doc.font(fontBold).fontSize(33).fillColor(accentColor)
-    .text(event.title || 'Event Ticket', heroX + 22, heroY + 142, {
-      width: heroW - 44,
-      lineGap: -2,
-      ellipsis: true
-    });
-
-  const eventDate = new Date(event.startTime);
-  const dateText = eventDate.toLocaleDateString('en-IN', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
-  });
-  const timeText = eventDate.toLocaleTimeString('en-IN', {
-    hour: '2-digit',
-    minute: '2-digit'
+  doc.font(fontBold).fontSize(11).fillColor('#fff4e8')
+    .text(model.dateLabel.toUpperCase(), heroX + 22, heroY + 24, { characterSpacing: 1.5 });
+  fitText(doc, model.eventTitle, heroX + 22, heroY + 124, heroW - 44, 74, {
+    font: fontBold,
+    size: 33,
+    minSize: 22,
+    color: '#fff9ef',
+    lineGap: -1
   });
 
-  const metaY = heroY + heroH + 22;
-  const metaGap = 14;
+  const metaY = heroY + heroH + 20;
+  const metaGap = 12;
   const metaW = (heroW - metaGap) / 2;
-  drawInfoBlock(doc, heroX, metaY, metaW, 'DATE & TIME', `${dateText}\n${timeText}`, fontFamily, fontBold, primaryColor, accentColor, muted);
-  drawInfoBlock(doc, heroX + metaW + metaGap, metaY, metaW, 'VENUE', event.location || 'TBA', fontFamily, fontBold, primaryColor, accentColor, muted);
+  drawInfoBlock(doc, heroX, metaY, metaW, 'DATE & TIME', `${model.dateLabel}\n${model.timeLabel}`, fontFamily, fontBold, primaryColor, ink, muted);
+  drawInfoBlock(doc, heroX + metaW + metaGap, metaY, metaW, 'VENUE', model.venue, fontFamily, fontBold, primaryColor, ink, muted);
 
-  const mainY = metaY + 104;
-  const qrSize = 152;
-  const qrBox = qrSize + 24;
-  const detailsX = showQR ? heroX + qrBox + 26 : heroX;
-  const detailsW = showQR ? heroW - qrBox - 26 : heroW;
+  const mainY = metaY + 106;
+  const qrSize = 146;
+  const qrBox = qrSize + 28;
+  const detailsX = showQR ? heroX + qrBox + 24 : heroX;
+  const detailsW = showQR ? heroW - qrBox - 24 : heroW;
 
   if (showQR) {
-    drawRoundedRect(doc, heroX, mainY, qrBox, qrBox, 22, [255, 255, 255]);
-    drawRoundedRect(doc, heroX + 6, mainY + 6, qrBox - 12, qrBox - 12, 16, null, { color: primaryColor, width: 2 });
+    drawRoundedRect(doc, heroX, mainY, qrBox, qrBox, 24, '#ffffff');
+    drawRoundedRect(doc, heroX + 7, mainY + 7, qrBox - 14, qrBox - 14, 18, null, { color: primaryRgb, width: 2 });
     try {
-      doc.image(qrCodeBuffer, heroX + 12, mainY + 12, { width: qrSize, height: qrSize });
+      doc.image(qrCodeBuffer, heroX + 14, mainY + 14, { width: qrSize, height: qrSize });
     } catch {
-      doc.font(fontBold).fontSize(18).fillColor([20, 20, 20]).text('QR', heroX + 64, mainY + 72);
+      doc.font(fontBold).fontSize(18).fillColor('#202020').text('QR', heroX + 66, mainY + 72);
     }
     doc.font(fontBold).fontSize(8).fillColor(muted)
-      .text('SCAN AT ENTRY', heroX, mainY + qrBox + 10, { width: qrBox, align: 'center', characterSpacing: 1.2 });
+      .text('SCAN AT ENTRY', heroX, mainY + qrBox + 10, { width: qrBox, align: 'center', characterSpacing: 1.5 });
   }
 
   doc.font(fontBold).fontSize(9).fillColor(primaryColor)
-    .text('TICKET NUMBER', detailsX, mainY + 2, { characterSpacing: 1.4 });
-  doc.font('Courier-Bold').fontSize(24).fillColor(accentColor)
-    .text(ticket.id.substring(0, 8).toUpperCase(), detailsX, mainY + 22, { width: detailsW });
+    .text('TICKET NUMBER', detailsX, mainY + 2, { characterSpacing: 1.6 });
+  doc.font('Courier-Bold').fontSize(25).fillColor(ink)
+    .text(model.ticketCode, detailsX, mainY + 22, { width: detailsW });
 
   drawMiniDivider(doc, detailsX, mainY + 68, detailsW);
 
-  doc.font(fontBold).fontSize(9).fillColor(muted)
+  doc.font(fontBold).fontSize(8).fillColor(muted)
     .text('ATTENDEE', detailsX, mainY + 88, { characterSpacing: 1.2 });
-  doc.font(fontBold).fontSize(18).fillColor(accentColor)
-    .text(attendee.name || 'Guest', detailsX, mainY + 108, { width: detailsW, ellipsis: true });
-  doc.font(fontFamily).fontSize(10).fillColor(COLORS.lightGray)
-    .text(attendee.email || order.registration.userEmail || '-', detailsX, mainY + 134, { width: detailsW, ellipsis: true });
+  fitText(doc, model.attendeeName, detailsX, mainY + 106, detailsW, 26, {
+    font: fontBold,
+    size: 18,
+    minSize: 12,
+    color: ink
+  });
+  doc.font(fontFamily).fontSize(9.5).fillColor(muted)
+    .text(model.attendeeEmail, detailsX, mainY + 134, { width: detailsW, ellipsis: true });
 
-  const tearY = mainY + qrBox + 58;
-  drawCutouts(doc, tearY, bgColor);
-  drawPerforatedLine(doc, cardX + 24, tearY, cardX + cardWidth - 24, [110, 108, 122]);
+  const pillY = mainY + 162;
+  drawPill(doc, detailsX, pillY, detailsW, model.tierName, model.priceLabel, fontFamily, fontBold, primaryColor, ink);
 
-  const footerY = tearY + 30;
-  drawRoundedRect(doc, heroX, footerY, heroW, 76, 18, [17, 16, 21]);
-  doc.font(fontBold).fontSize(9).fillColor(primaryColor)
-    .text('IMPORTANT', heroX + 20, footerY + 18, { characterSpacing: 1.3 });
-  doc.font(fontFamily).fontSize(9.5).fillColor(COLORS.lightGray)
-    .text('This pass is valid for one entry only. Keep the QR code clearly visible at the gate.', heroX + 20, footerY + 38, {
-      width: heroW - 40,
+  const tearY = mainY + qrBox + 52;
+  drawCutouts(doc, tearY, paper);
+  drawPerforatedLine(doc, cardX + 28, tearY, cardX + cardWidth - 28, '#c8b9a8');
+
+  const stubY = tearY + 26;
+  drawRoundedRect(doc, heroX, stubY, heroW, 88, 20, '#17110f');
+  doc.font(fontBold).fontSize(8).fillColor(primaryColor)
+    .text('ENTRY INSTRUCTIONS', heroX + 20, stubY + 18, { characterSpacing: 1.8 });
+  doc.font(fontFamily).fontSize(9.5).fillColor('#f4e8db')
+    .text('Keep this pass ready at the gate. The QR code is valid for one attendee and one entry only.', heroX + 20, stubY + 38, {
+      width: heroW - 165,
       lineGap: 2
     });
+  doc.font(fontBold).fontSize(8).fillColor('#9e9286')
+    .text('ORDER', heroX + heroW - 118, stubY + 24, { width: 92, align: 'right', characterSpacing: 1.2 });
+  doc.font('Courier-Bold').fontSize(16).fillColor('#fff7eb')
+    .text(model.orderCode, heroX + heroW - 118, stubY + 42, { width: 92, align: 'right' });
 
   if (showLogo) {
-    doc.font(fontBold).fontSize(14).fillColor(primaryColor)
-      .text('Occasio', 0, TICKET_HEIGHT - 52, { width: TICKET_WIDTH, align: 'center' });
+    doc.font(fontBold).fontSize(13).fillColor(primaryColor)
+      .text(model.brand, 0, TICKET_HEIGHT - 36, { width: TICKET_WIDTH, align: 'center' });
   }
 
   doc.font(fontFamily).fontSize(8).fillColor(muted)
-    .text(`Issued ${new Date(ticket.issuedAt).toLocaleDateString('en-IN')}`, 0, TICKET_HEIGHT - 32, {
+    .text(`Issued ${model.issuedLabel}`, 0, TICKET_HEIGHT - 20, {
       width: TICKET_WIDTH,
       align: 'center'
     });
 }
 
 function drawInfoBlock(doc, x, y, width, label, value, fontFamily, fontBold, primaryColor, accentColor, muted) {
-  drawRoundedRect(doc, x, y, width, 82, 18, [17, 16, 21]);
+  drawRoundedRect(doc, x, y, width, 84, 18, '#fffdf8');
+  drawRoundedRect(doc, x + 0.8, y + 0.8, width - 1.6, 82.4, 17, null, { color: '#eadccb', width: 0.8 });
   doc.font(fontBold).fontSize(8).fillColor(primaryColor)
-    .text(label, x + 16, y + 15, { width: width - 32, characterSpacing: 1.2 });
-  doc.font(fontBold).fontSize(12).fillColor(accentColor)
-    .text(value, x + 16, y + 35, { width: width - 32, lineGap: 2, ellipsis: true });
+    .text(label, x + 16, y + 15, { width: width - 32, characterSpacing: 1.4 });
+  doc.font(fontBold).fontSize(11.5).fillColor(accentColor)
+    .text(value, x + 16, y + 36, { width: width - 32, lineGap: 2, ellipsis: true });
   doc.font(fontFamily).fontSize(1).fillColor(muted);
 }
 
 function drawMiniDivider(doc, x, y, width) {
   doc.save();
-  doc.lineWidth(0.6).strokeColor([62, 60, 70]);
+  doc.lineWidth(0.8).strokeColor('#e3d5c4');
   doc.moveTo(x, y).lineTo(x + width, y).stroke();
   doc.restore();
+}
+
+function fitText(doc, text, x, y, width, maxHeight, options) {
+  let size = options.size;
+  while (size > options.minSize) {
+    doc.font(options.font).fontSize(size);
+    if (doc.heightOfString(text, { width, lineGap: options.lineGap || 0 }) <= maxHeight) break;
+    size -= 1;
+  }
+
+  doc.font(options.font).fontSize(size).fillColor(options.color)
+    .text(text, x, y, {
+      width,
+      lineGap: options.lineGap || 0,
+      ellipsis: true
+    });
+}
+
+function drawPill(doc, x, y, width, leftText, rightText, fontFamily, fontBold, primaryColor, ink) {
+  drawRoundedRect(doc, x, y, width, 42, 21, '#fffdf8');
+  drawRoundedRect(doc, x + 0.7, y + 0.7, width - 1.4, 40.6, 20, null, { color: '#eadccb', width: 0.8 });
+  doc.font(fontBold).fontSize(8).fillColor(primaryColor)
+    .text('PASS TYPE', x + 16, y + 9, { width: width / 2 - 20, characterSpacing: 1.2 });
+  doc.font(fontBold).fontSize(12).fillColor(ink)
+    .text(leftText, x + 16, y + 23, { width: width / 2 - 20, ellipsis: true });
+  doc.font(fontFamily).fontSize(8).fillColor('#7e746b')
+    .text('PRICE', x + width / 2, y + 9, { width: width / 2 - 16, align: 'right', characterSpacing: 1.2 });
+  doc.font(fontBold).fontSize(12).fillColor(ink)
+    .text(rightText, x + width / 2, y + 23, { width: width / 2 - 16, align: 'right' });
+}
+
+export async function renderTicketPDFBuffer(order, ticket) {
+  const qrCodeBuffer = await QRCode.toBuffer(ticket.qrPayload, {
+    width: 300,
+    margin: 1,
+    color: { dark: '#000000', light: '#ffffff' }
+  });
+
+  const doc = new PDFDocument({ size: 'A4', margin: 0, bufferPages: false });
+  const buffers = [];
+  doc.on('data', buffers.push.bind(buffers));
+
+  return await new Promise((resolve, reject) => {
+    doc.on('end', () => resolve(Buffer.concat(buffers)));
+    doc.on('error', reject);
+
+    drawPremiumTicket(doc, ticket, order, qrCodeBuffer)
+      .then(() => doc.end())
+      .catch(reject);
+  });
 }
 
 // ============== MAIN EXPORT FUNCTIONS ==============
@@ -360,27 +513,7 @@ export async function generateTicketPDF(order) {
   try {
     let ticket = await ensureTicketWithQr(order);
 
-    // Generate QR code
-    const qrCodeBuffer = await QRCode.toBuffer(ticket.qrPayload, {
-      width: 300,
-      margin: 1,
-      color: { dark: '#000000', light: '#ffffff' }
-    });
-
-    // Create PDF document
-    const doc = new PDFDocument({ size: 'A4', margin: 0 });
-    const buffers = [];
-    doc.on('data', buffers.push.bind(buffers));
-
-    const pdfBuffer = await new Promise((resolve, reject) => {
-      doc.on('end', () => resolve(Buffer.concat(buffers)));
-      doc.on('error', reject);
-
-      // Draw the premium ticket
-      drawPremiumTicket(doc, ticket, order, qrCodeBuffer)
-        .then(() => doc.end())
-        .catch(reject);
-    });
+    const pdfBuffer = await renderTicketPDFBuffer(order, ticket);
 
     // Upload to R2
     let ticketPdfUrl = null;
@@ -434,30 +567,7 @@ export async function generateTicketPDF(order) {
 export async function generateTicketPDFBuffer(order) {
   try {
     const ticket = await ensureTicketWithQr(order);
-
-    // Generate QR code
-    const qrCodeBuffer = await QRCode.toBuffer(ticket.qrPayload, {
-      width: 300,
-      margin: 1,
-      color: { dark: '#000000', light: '#ffffff' }
-    });
-
-    // Create PDF document
-    const doc = new PDFDocument({ size: 'A4', margin: 0 });
-    const buffers = [];
-    doc.on('data', buffers.push.bind(buffers));
-
-    const pdfBuffer = await new Promise((resolve, reject) => {
-      doc.on('end', () => resolve(Buffer.concat(buffers)));
-      doc.on('error', reject);
-
-      // Draw the premium ticket
-      drawPremiumTicket(doc, ticket, order, qrCodeBuffer)
-        .then(() => doc.end())
-        .catch(reject);
-    });
-
-    return pdfBuffer;
+    return await renderTicketPDFBuffer(order, ticket);
   } catch (error) {
     console.error('Generate PDF buffer error:', error);
     throw error;

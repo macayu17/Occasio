@@ -23,7 +23,7 @@ A full-stack event management platform built with React + Node.js + PostgreSQL t
 - 🔍 Browse and search events by category
 - 📖 View detailed event information
 - 📋 Fill dynamic registration forms
-- 💳 Secure payment processing (Razorpay)
+- 💳 Secure payment processing (Razorpay and PhonePe)
 - 📧 Receive PDF tickets with QR codes via email
 - ⭐ Reviews and ratings for events
 - 📆 Add events to calendar (.ics download)
@@ -32,9 +32,9 @@ A full-stack event management platform built with React + Node.js + PostgreSQL t
 ### Technical Features
 - 🔒 HMAC-signed QR codes for security
 - 🔔 Webhook-based payment confirmation
-- ☁️ Cloudinary integration for image storage
+- ☁️ Cloudflare R2 primary PDF storage with Cloudinary fallback
 - 📄 PDF ticket generation with PDFKit
-- 📱 PWA support with push notifications
+- 📱 Optional PWA support with push notifications
 - 🎨 Modern responsive UI with Tailwind CSS & glassmorphism
 
 ## 🛠️ Tech Stack
@@ -54,9 +54,9 @@ A full-stack event management platform built with React + Node.js + PostgreSQL t
 - JWT Authentication
 - PDFKit (PDF generation)
 - QRCode generation
-- Razorpay integration
+- Razorpay and PhonePe integration
 - Nodemailer (email)
-- Cloudinary (images)
+- Cloudflare R2 / Cloudinary (assets)
 
 ## 📋 Prerequisites
 
@@ -107,20 +107,33 @@ SMTP_PASS=your_app_password
 CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
+R2_ACCOUNT_ID=your_cloudflare_account_id
+R2_ACCESS_KEY_ID=your_r2_access_key
+R2_SECRET_ACCESS_KEY=your_r2_secret_key
+R2_BUCKET=your_r2_bucket_name
+R2_ENDPOINT=https://your_account_id.r2.cloudflarestorage.com
+R2_REGION=auto
 QR_SECRET_KEY=your_qr_secret
+ALLOW_UNSIGNED_TICKET_SCAN=false
+PHONEPE_CLIENT_ID=your_phonepe_client_id
+PHONEPE_CLIENT_SECRET=your_phonepe_client_secret
+PHONEPE_CLIENT_VERSION=1
+PHONEPE_SALT_INDEX=1
+PHONEPE_ENV=sandbox
 ```
 
 ### Frontend (.env)
 ```env
 VITE_API_URL=http://localhost:5000/api
 VITE_RAZORPAY_KEY_ID=your_razorpay_key_id
+VITE_ENABLE_PWA=false
 ```
 
 ## 🚢 Deployment
 
-**Backend**: Deploy to Render or Azure App Service  
-**Frontend**: Deploy to Vercel  
-**Database**: Use Neon or Supabase for PostgreSQL
+- **Backend**: Deploy to Azure App Service
+- **Frontend**: Deploy to Vercel with `VITE_API_URL` pointed at the Azure backend `/api` URL
+- **Database**: Use Neon or Supabase for PostgreSQL
 
 ## 📄 License
 

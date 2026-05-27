@@ -4,6 +4,16 @@ import { authenticate, checkEventAccess } from '../middleware/auth.middleware.js
 
 const router = express.Router();
 
+const CHECK_IN_ROLES = ['SUPER_MANAGER', 'MANAGER', 'SCANNER'];
+const ANALYTICS_ROLES = ['SUPER_MANAGER', 'MANAGER'];
+const EDIT_ROLES = ['SUPER_MANAGER', 'MANAGER'];
+
+const isTicketExpired = (ticket) => {
+    if (!ticket.validUntil) return false;
+    const graceEnd = new Date(ticket.validUntil.getTime() + 24 * 60 * 60 * 1000);
+    return new Date() > graceEnd;
+};
+
 // All routes require authentication
 router.use(authenticate);
 
@@ -79,9 +89,9 @@ router.get('/events/:id', async (req, res) => {
                 role: access.role,
                 isOwner: access.isOwner,
                 isTeamMember: access.isTeamMember,
-                canCheckIn: access.isOwner || access.role === 'ADMIN' || ['MANAGER', 'SCANNER'].includes(access.role),
-                canViewAnalytics: access.isOwner || access.role === 'ADMIN' || access.role === 'MANAGER',
-                canEdit: access.isOwner || access.role === 'ADMIN'
+                canCheckIn: access.isOwner || access.role === 'ADMIN' || CHECK_IN_ROLES.includes(access.role),
+                canViewAnalytics: access.isOwner || access.role === 'ADMIN' || ANALYTICS_ROLES.includes(access.role),
+                canEdit: access.isOwner || access.role === 'ADMIN' || EDIT_ROLES.includes(access.role)
             }
         });
     } catch (error) {
@@ -96,10 +106,10 @@ router.get('/events/:id/attendees', async (req, res) => {
         const { id } = req.params;
         const { search, status } = req.query;
 
-        // Check access - require SCANNER or MANAGER role
-        const access = await checkEventAccess(req.user, id, ['MANAGER', 'SCANNER']);
+        // Check access - require scanner-capable team role
+        const access = await checkEventAccess(req.user, id, CHECK_IN_ROLES);
         if (!access.hasAccess) {
-            return res.status(403).json({ error: access.error || 'Scanner or Manager access required' });
+            return res.status(403).json({ error: access.error || 'Scanner access required' });
         }
 
         // Build filter conditions
@@ -168,9 +178,9 @@ router.get('/events/:id/checkin-stats', async (req, res) => {
         const { id } = req.params;
 
         // Check access
-        const access = await checkEventAccess(req.user, id, ['MANAGER', 'SCANNER']);
+        const access = await checkEventAccess(req.user, id, CHECK_IN_ROLES);
         if (!access.hasAccess) {
-            return res.status(403).json({ error: access.error || 'Scanner or Manager access required' });
+            return res.status(403).json({ error: access.error || 'Scanner access required' });
         }
 
         // Count tickets
@@ -241,30 +251,53 @@ router.post('/tickets/:ticketId/checkin', async (req, res) => {
         const eventId = ticket.order.registration.event.id;
 
         // Check access
-        const access = await checkEventAccess(req.user, eventId, ['MANAGER', 'SCANNER']);
+        const access = await checkEventAccess(req.user, eventId, CHECK_IN_ROLES);
         if (!access.hasAccess) {
-            return res.status(403).json({ error: access.error || 'Scanner or Manager access required' });
+            return res.status(403).json({ error: access.error || 'Scanner access required' });
         }
 
         if (ticket.revoked) {
             return res.status(400).json({ error: 'Ticket has been revoked' });
         }
 
-        if (ticket.checkedInAt) {
+        if (isTicketExpired(ticket)) {
+            return res.status(400).json({ error: 'Ticket has expired' });
+        }
+
+        if (ticket.scannedAt || ticket.checkedInAt) {
             return res.status(400).json({
                 error: 'Already checked in',
-                checkedInAt: ticket.checkedInAt
+                checkedInAt: ticket.checkedInAt || ticket.scannedAt
             });
         }
 
-        const updatedTicket = await prisma.ticket.update({
-            where: { id: ticketId },
+        const now = new Date();
+        const updateResult = await prisma.ticket.updateMany({
+            where: {
+                id: ticketId,
+                scannedAt: null,
+                checkedInAt: null
+            },
             data: {
-                checkedInAt: new Date(),
+                checkedInAt: now,
                 checkedInBy: req.user.id,
-                scannedAt: ticket.scannedAt || new Date()
+                scannedAt: now
             }
         });
+
+        if (updateResult.count === 0) {
+            const currentTicket = await prisma.ticket.findUnique({
+                where: { id: ticketId },
+                select: { scannedAt: true, checkedInAt: true }
+            });
+
+            return res.status(400).json({
+                error: 'Already checked in',
+                checkedInAt: currentTicket?.checkedInAt || currentTicket?.scannedAt || now
+            });
+        }
+
+        const updatedTicket = await prisma.ticket.findUnique({ where: { id: ticketId } });
 
         res.json({
             success: true,
@@ -304,9 +337,9 @@ router.post('/tickets/:ticketId/checkout', async (req, res) => {
         const eventId = ticket.order.registration.event.id;
 
         // Check access
-        const access = await checkEventAccess(req.user, eventId, ['MANAGER', 'SCANNER']);
+        const access = await checkEventAccess(req.user, eventId, CHECK_IN_ROLES);
         if (!access.hasAccess) {
-            return res.status(403).json({ error: access.error || 'Scanner or Manager access required' });
+            return res.status(403).json({ error: access.error || 'Scanner access required' });
         }
 
         if (!ticket.checkedInAt) {

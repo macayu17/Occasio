@@ -49,9 +49,8 @@ export default function EventControlPage() {
 
     const fetchEvent = async () => {
         try {
-            const res = await api.get(`/admin/events`);
-            const found = res.data.find(e => e.id === eventId);
-            setEvent(found);
+            const res = await api.get(`/admin/events/${eventId}`);
+            setEvent(res.data);
         } catch (error) {
             toast.error('Failed to load event');
         } finally {
@@ -146,7 +145,7 @@ export default function EventControlPage() {
             </div>
 
             {/* Floating Dock Navigation */}
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+            <div className="fixed bottom-8 left-1/2 z-50 w-[min(760px,calc(100vw-2rem))] -translate-x-1/2 lg:left-[calc(50%+9rem)]">
                 <Dock
                     items={TABS.map(tab => ({
                         icon: <tab.icon size={22} />,
@@ -154,9 +153,12 @@ export default function EventControlPage() {
                         active: activeTab === tab.id,
                         onClick: () => setActiveTab(tab.id)
                     }))}
+                    className="mx-auto"
                     magnification={65}
                     baseItemSize={48}
                     distance={120}
+                    panelHeight={102}
+                    minimal
                 />
             </div>
 
@@ -1459,22 +1461,22 @@ function CertificatesTab({ eventId, event }) {
 
     const handleSend = async (dryRun = false) => {
         if (!confirm(dryRun ? 'Check how many emails will be sent?' : 'Are you sure you want to send certificates to ALL checked-in users?')) return;
-        
+
         try {
             if (dryRun) setDryRunLoading(true);
             else { setSending(true); setSendResult(null); }
 
             const res = await api.post(`/admin/events/${eventId}/certificates`, { dryRun });
-            
+
             if (dryRun) {
                 setStats(res.data);
                 toast.success(`Found ${res.data.count} recipients`);
             } else {
                 setSendResult(res.data);
-                if (res.data.sent > 0) {
-                    toast.success(`${res.data.sent} certificate(s) sent successfully`);
+                if ((res.data.generated || res.data.sent || 0) > 0) {
+                    toast.success(res.data.message || `${res.data.generated || res.data.sent} certificate(s) generated`);
                 } else {
-                    toast.error(res.data.message || 'No certificates were sent');
+                    toast.error(res.data.message || 'No certificates were generated');
                 }
             }
         } catch (error) {
@@ -1489,8 +1491,8 @@ function CertificatesTab({ eventId, event }) {
 
     // Check if any certificate is configured (new configs or legacy)
     const configs = event.certificateConfigs || {};
-    const hasAnyConfig = event.certificateEnabled || 
-        event.certificateTemplateUrl || 
+    const hasAnyConfig = event.certificateEnabled ||
+        event.certificateTemplateUrl ||
         Object.values(configs).some(c => c?.templateUrl);
 
     if (!hasAnyConfig) {
@@ -1516,14 +1518,14 @@ function CertificatesTab({ eventId, event }) {
         <div className="space-y-4">
             <div className="glass-card p-5">
                 <h2 className="text-lg font-bold text-white mb-3">Certificate Dashboard</h2>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-5">
                     <div className="md:col-span-3">
                         <h3 className="text-xs font-semibold text-gray-400 mb-1.5 uppercase">Preview</h3>
                         <div className="relative bg-gray-800 rounded-lg overflow-hidden border border-gray-700" style={{ height: '360px' }}>
                              {previewBlobUrl ? (
-                                <iframe 
-                                    src={previewBlobUrl} 
+                                <iframe
+                                    src={previewBlobUrl}
                                     className="w-full h-full"
                                     title="Certificate Preview"
                                 />
@@ -1552,17 +1554,17 @@ function CertificatesTab({ eventId, event }) {
                             <p className="text-gray-400 text-xs mb-3">
                                 Certificates will be generated and emailed to all attendees who have checked in.
                             </p>
-                            
+
                             <div className="flex gap-3">
-                                <button 
+                                <button
                                     onClick={() => handleSend(true)}
                                     disabled={dryRunLoading || sending}
                                     className="btn btn-ghost border border-gray-600 text-sm px-3 py-1.5"
                                 >
                                     {dryRunLoading ? 'Checking...' : 'Check Count'}
                                 </button>
-                                
-                                <button 
+
+                                <button
                                     onClick={() => handleSend(false)}
                                     disabled={sending}
                                     className="btn btn-primary flex-1 text-sm px-3 py-1.5"
@@ -1582,15 +1584,22 @@ function CertificatesTab({ eventId, event }) {
                         )}
 
                         {sendResult && (
-                            <div className={`p-4 rounded-lg border ${sendResult.sent > 0 ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
-                                <p className={sendResult.sent > 0 ? 'text-green-300' : 'text-red-300'}>
-                                    <strong>Send Result:</strong> {sendResult.sent || 0} sent, {sendResult.failed || 0} failed
+                            <div className={`p-4 rounded-lg border ${(sendResult.generated || sendResult.sent || 0) > 0 ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                                <p className={(sendResult.generated || sendResult.sent || 0) > 0 ? 'text-green-300' : 'text-red-300'}>
+                                    <strong>Issue Result:</strong> {sendResult.generated || 0} generated, {sendResult.sent || 0} emailed, {sendResult.failed || 0} failed
                                     {sendResult.total ? ` out of ${sendResult.total} total` : ''}
                                 </p>
                                 {sendResult.errors && sendResult.errors.length > 0 && (
                                     <div className="mt-2 text-sm text-red-400 max-h-32 overflow-y-auto">
                                         {sendResult.errors.map((e, i) => (
                                             <div key={i} className="truncate">{e.email}: {e.error || e.reason || 'Unknown error'}</div>
+                                        ))}
+                                    </div>
+                                )}
+                                {sendResult.emailErrors && sendResult.emailErrors.length > 0 && (
+                                    <div className="mt-2 text-sm text-amber-300 max-h-32 overflow-y-auto">
+                                        {sendResult.emailErrors.map((e, i) => (
+                                            <div key={i} className="truncate">{e.email}: email failed, certificate generated</div>
                                         ))}
                                     </div>
                                 )}

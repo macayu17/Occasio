@@ -1,5 +1,9 @@
 #!/bin/bash
 echo "Installing dependencies..."
-npm install --production
+npm ci --omit=dev
+echo "Applying database migrations..."
+npx prisma migrate deploy
+echo "Generating Prisma client..."
+npx prisma generate
 echo "Starting server..."
-npm start
+node src/server.js

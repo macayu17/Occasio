@@ -91,6 +91,55 @@ function resolveFieldValue(fieldId, data) {
   }
 }
 
+export function normalizeCertificateMapping(mapping) {
+  if (Array.isArray(mapping) && mapping.length > 0) {
+    return mapping;
+  }
+
+  return [
+    {
+      fieldId: 'certificateType',
+      x: 0.5,
+      y: 0.22,
+      fontSize: 18,
+      color: '#E23744',
+      bold: true,
+    },
+    {
+      fieldId: 'userName',
+      x: 0.5,
+      y: 0.42,
+      fontSize: 34,
+      color: '#111827',
+      bold: true,
+    },
+    {
+      fieldId: 'eventName',
+      x: 0.5,
+      y: 0.55,
+      fontSize: 18,
+      color: '#374151',
+      bold: true,
+    },
+    {
+      fieldId: 'date',
+      x: 0.5,
+      y: 0.66,
+      fontSize: 13,
+      color: '#6B7280',
+      bold: false,
+    },
+    {
+      fieldId: 'qrCode',
+      x: 0.5,
+      y: 0.82,
+      fontSize: 9,
+      color: '#6B7280',
+      bold: false,
+    },
+  ];
+}
+
 /**
  * Parse hex color to pdf-lib rgb
  */
@@ -123,9 +172,9 @@ export const generateCertificate = async (templateUrl, mapping, data) => {
     const { width, height } = firstPage.getSize();
 
     // 3. Draw fields
-    for (const field of (mapping || [])) {
+    for (const field of normalizeCertificateMapping(mapping)) {
       const { fieldId, x, y, fontSize = 12, color = '#000000', bold = false } = field;
-      
+
       const text = resolveFieldValue(fieldId, data);
       if (!text) continue;
 
@@ -142,7 +191,7 @@ export const generateCertificate = async (templateUrl, mapping, data) => {
     }
 
     // 4. Save
-    const pdfBytes = await pdfDoc.save();
+    const pdfBytes = await pdfDoc.save({ useObjectStreams: false });
     return pdfBytes;
   } catch (error) {
     console.error('Certificate generation error:', error);

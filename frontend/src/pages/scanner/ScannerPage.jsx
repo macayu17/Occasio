@@ -17,14 +17,31 @@ import {
   XCircle,
   Zap
 } from 'lucide-react';
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
 
 const QR_READER_ID = 'qr-reader';
 const SCAN_DEDUPE_MS = 1800;
+let scannerModulePromise;
 
 const normalizeQrPayload = (qrData) => String(qrData || '').trim().replace(/^\uFEFF/, '');
+
+const loadScannerModule = () => {
+  if (!scannerModulePromise) {
+    scannerModulePromise = import('html5-qrcode');
+  }
+  return scannerModulePromise;
+};
+
+const scheduleIdleTask = (callback) => {
+  if ('requestIdleCallback' in window) {
+    const id = window.requestIdleCallback(callback, { timeout: 2500 });
+    return () => window.cancelIdleCallback?.(id);
+  }
+
+  const id = window.setTimeout(callback, 900);
+  return () => window.clearTimeout(id);
+};
 
 const getQrbox = (viewfinderWidth, viewfinderHeight) => {
   const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
@@ -176,6 +193,7 @@ export default function ScannerPage() {
     await new Promise((resolve) => requestAnimationFrame(resolve));
 
     try {
+      const { Html5Qrcode, Html5QrcodeSupportedFormats } = await loadScannerModule();
       const scanner = new Html5Qrcode(QR_READER_ID, {
         formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
         experimentalFeatures: { useBarCodeDetectorIfSupported: true },
@@ -201,6 +219,12 @@ export default function ScannerPage() {
       toast.error('Could not access camera. Use manual entry.');
     }
   }, [handleDetectedPayload, stopScanner]);
+
+  useEffect(() => {
+    return scheduleIdleTask(() => {
+      void loadScannerModule();
+    });
+  }, []);
 
   useEffect(() => {
     return () => {

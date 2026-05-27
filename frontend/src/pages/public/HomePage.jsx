@@ -43,10 +43,12 @@ export default function HomePage() {
 
   // Fetch events when filters change
   useEffect(() => {
-    fetchEvents();
+    const controller = new AbortController();
+    fetchEvents(controller.signal);
+    return () => controller.abort();
   }, [debouncedSearch, categoryFilter]);
 
-  const fetchEvents = async () => {
+  const fetchEvents = async (signal) => {
     try {
       setLoading(true);
       setError('');
@@ -55,13 +57,14 @@ export default function HomePage() {
       if (debouncedSearch) params.append('search', debouncedSearch);
       if (categoryFilter && categoryFilter !== 'ALL') params.append('category', categoryFilter);
 
-      const response = await api.get(`/events?${params.toString()}`);
+      const response = await api.get(`/events?${params.toString()}`, { signal });
       setEvents(response.data);
     } catch (error) {
+      if (error.code === 'ERR_CANCELED' || error.name === 'CanceledError') return;
       setError('We could not load events right now. Check the backend connection and try again.');
       toast.error('Failed to fetch events');
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   };
 
@@ -194,7 +197,7 @@ export default function HomePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {events.map((event, idx) => (
               <div key={event.id} className="animate-fade-in" style={{ animationDelay: `${idx * 100}ms` }}>
-                <EventCard event={event} />
+                <EventCard event={event} priority={idx < 3} />
               </div>
             ))}
           </div>
@@ -219,7 +222,7 @@ function EventCardSkeleton() {
   );
 }
 
-function EventCard({ event }) {
+function EventCard({ event, priority = false }) {
   // Use helper for proper image URL resolution
   const posterImage = getImageUrl(event.posterUrl) || 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&auto=format&fit=crop&q=80';
   const priceCents = Number(event.priceCents || 0);
@@ -234,7 +237,10 @@ function EventCard({ event }) {
             src={posterImage}
             alt={`${event.title} poster`}
             className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700 will-change-transform"
-            loading="lazy"
+            loading={priority ? 'eager' : 'lazy'}
+            fetchPriority={priority ? 'high' : 'auto'}
+            decoding="async"
+            sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
             onError={(e) => {
               e.target.src = "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&auto=format&fit=crop&q=80";
             }}

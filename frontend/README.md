@@ -49,6 +49,7 @@ copy .env.example .env
 ```
 VITE_API_URL=http://localhost:5000/api
 VITE_RAZORPAY_KEY_ID=your_razorpay_key_id
+VITE_ENABLE_PWA=false
 ```
 
 4. Start development server:
@@ -105,6 +106,7 @@ src/
 
 - `VITE_API_URL` - Backend API URL
 - `VITE_RAZORPAY_KEY_ID` - Razorpay public key
+- `VITE_ENABLE_PWA` - Set to `true` only when service worker generation is required
 
 ## Building for Production
 

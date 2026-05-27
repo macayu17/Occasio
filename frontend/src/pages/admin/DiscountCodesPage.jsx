@@ -100,7 +100,7 @@ export default function DiscountCodesPage() {
                                     <div>
                                         <h3 className="font-bold text-white text-lg tracking-wide">{code.code}</h3>
                                         <p className="text-sm text-gray-400">
-                                            {code.type === 'PERCENTAGE' ? `${code.amount}% OFF` : `₹${code.amount} OFF`}
+                                            {code.type === 'PERCENTAGE' ? `${code.amount}% OFF` : `₹${(code.amount / 100).toFixed(0)} OFF`}
                                         </p>
                                     </div>
                                 </div>

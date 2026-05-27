@@ -8,6 +8,7 @@
     "dev": "nodemon src/server.js",
     "prestart": "npx prisma generate",
     "start": "node src/server.js",
+    "test": "node --test",
     "tickets:backfill": "node scripts/backfill-tickets.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -25,10 +26,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1045.0",
+    "@aws-sdk/s3-request-presigner": "^3.1045.0",
     "@prisma/client": "^6.19.0",
     "ajv": "^8.12.0",
     "ajv-formats": "^2.1.1",
-    "aws-sdk": "^2.1505.0",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.1.0",
     "cloudinary": "^2.8.0",
@@ -43,9 +45,10 @@
     "ioredis": "^5.3.2",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
-    "nodemailer": "^6.9.7",
+    "nodemailer": "^8.0.7",
     "pdf-lib": "^1.17.1",
     "pdfkit": "^0.17.2",
+    "prisma": "^6.19.0",
     "qrcode": "^1.5.3",
     "razorpay": "^2.9.2",
     "stripe": "^14.7.0",
@@ -53,7 +56,6 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2",
-    "prisma": "^6.19.0"
+    "nodemon": "^3.0.2"
   }
 }

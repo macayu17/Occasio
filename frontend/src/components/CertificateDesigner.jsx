@@ -1,11 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { Upload, Save, Type, Calendar, Trash2, Eye, Award, Trophy, Medal, Users, Send, Mail, Check, AlertTriangle, X } from 'lucide-react';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
+import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 // Configure PDF worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
 const CERTIFICATE_TYPES = [
   { id: 'participation', label: 'Participation', icon: Users, color: 'blue', description: 'For all checked-in attendees' },
@@ -26,10 +27,10 @@ const AVAILABLE_FIELDS = [
 export default function CertificateDesigner({ eventId, initialConfig, onSave }) {
   // Active certificate type tab
   const [activeCertType, setActiveCertType] = useState('participation');
-  
+
   // Per-type state: { [certType]: { pdfData, templateUrl, mapping } }
   const [configs, setConfigs] = useState({});
-  
+
   const [selectedFieldId, setSelectedFieldId] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [pageWidth, setPageWidth] = useState(0);
@@ -43,7 +44,7 @@ export default function CertificateDesigner({ eventId, initialConfig, onSave }) 
 
   // Current active config helpers
   const activeConfig = configs[activeCertType] || { pdfData: null, templateUrl: null, mapping: [] };
-  
+
   const updateActiveConfig = (updates) => {
     setConfigs(prev => ({
       ...prev,
@@ -73,7 +74,7 @@ export default function CertificateDesigner({ eventId, initialConfig, onSave }) 
     try {
       const response = await api.get(`/admin/events/${eventId}/certificates/config`);
       const { configs: serverConfigs } = response.data;
-      
+
       if (serverConfigs && Object.keys(serverConfigs).length > 0) {
         const loadedConfigs = {};
         for (const [type, config] of Object.entries(serverConfigs)) {
@@ -124,7 +125,7 @@ export default function CertificateDesigner({ eventId, initialConfig, onSave }) 
   const loadPdfFromUrl = async (url, certType) => {
     try {
       let fetchUrl = url;
-      
+
       // For Cloudinary URLs, use the backend proxy to avoid 401 on raw file delivery
       if (url && (url.includes('cloudinary.com') || url.startsWith('r2://'))) {
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -146,9 +147,9 @@ export default function CertificateDesigner({ eventId, initialConfig, onSave }) 
         if (!response.ok) throw new Error(`Failed to fetch PDF: ${response.status}`);
         blob = await response.blob();
       }
-      
+
       const dataUrl = await blobToDataUrl(blob);
-      
+
       setConfigs(prev => ({
         ...prev,
         [certType]: { ...prev[certType] || { templateUrl: url, mapping: [] }, pdfData: dataUrl }
@@ -197,17 +198,17 @@ export default function CertificateDesigner({ eventId, initialConfig, onSave }) 
       const res = await api.post('/admin/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      
+
       let fullUrl = res.data.url;
       console.log('Template URL:', fullUrl);
-      
+
       if (!fullUrl) {
         console.error('Upload succeeded but no URL returned. Response:', res.data);
         toast.error('Upload succeeded but server returned no URL. Try re-uploading.');
         // Keep the local preview (pdfData) so the user can still test via data URL
         return;
       }
-      
+
       updateActiveConfig({ templateUrl: fullUrl });
       toast.success('Template uploaded');
     } catch (error) {
@@ -295,13 +296,13 @@ export default function CertificateDesigner({ eventId, initialConfig, onSave }) 
 
     try {
       toast.loading('Generating test certificate...', { id: 'test-cert' });
-      
+
       const response = await api.post(
         `/admin/events/${eventId}/certificates/test`,
         { templateUrl: template, mapping: cfg.mapping, certificateType: activeCertType },
         { responseType: 'blob' }
       );
-      
+
       // Check if we got a JSON error response disguised as blob
       const contentType = response.headers['content-type'] || '';
       if (contentType.includes('application/json')) {
@@ -309,11 +310,11 @@ export default function CertificateDesigner({ eventId, initialConfig, onSave }) 
         const errorData = JSON.parse(text);
         throw new Error(errorData.error || 'Server returned an error');
       }
-      
+
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       window.open(url, '_blank');
-      
+
       toast.success('Test certificate generated!', { id: 'test-cert' });
     } catch (error) {
       console.error('Test certificate error:', error);
@@ -340,7 +341,7 @@ export default function CertificateDesigner({ eventId, initialConfig, onSave }) 
   const handleSendCertificates = async () => {
     const certType = sendingType;
     const cfg = configs[certType];
-    
+
     if (!cfg?.templateUrl) {
       toast.error(`No template configured for ${CERTIFICATE_TYPES.find(t => t.id === certType)?.label}. Upload and save a template first.`);
       return;
@@ -356,15 +357,19 @@ export default function CertificateDesigner({ eventId, initialConfig, onSave }) 
 
     try {
       toast.loading('Sending certificates...', { id: 'send-cert' });
-      
+
       const payload = {
         certificateType: certType,
         ...(isPrize ? { recipientEmails: emailList } : {})
       };
 
       const response = await api.post(`/admin/events/${eventId}/certificates`, payload);
-      
-      toast.success(response.data.message || `Certificates sent!`, { id: 'send-cert' });
+
+      if ((response.data.generated || response.data.sent || 0) > 0) {
+        toast.success(response.data.message || `Certificates generated!`, { id: 'send-cert' });
+      } else {
+        toast.error(response.data.message || 'No certificates were generated', { id: 'send-cert' });
+      }
       setSendModalOpen(false);
       setSendEmails('');
     } catch (error) {
@@ -379,93 +384,105 @@ export default function CertificateDesigner({ eventId, initialConfig, onSave }) 
 
   const currentMapping = activeConfig.mapping || [];
 
-  // Color classes based on certificate type
-  const typeColorClasses = {
-    participation: { bg: 'bg-blue-600', bgHover: 'hover:bg-blue-500', ring: 'ring-blue-500', text: 'text-blue-400', bgLight: 'bg-blue-900/20', border: 'border-blue-700' },
-    first_prize: { bg: 'bg-yellow-600', bgHover: 'hover:bg-yellow-500', ring: 'ring-yellow-500', text: 'text-yellow-400', bgLight: 'bg-yellow-900/20', border: 'border-yellow-700' },
-    second_prize: { bg: 'bg-gray-500', bgHover: 'hover:bg-gray-400', ring: 'ring-gray-400', text: 'text-gray-300', bgLight: 'bg-gray-700/20', border: 'border-gray-500' },
-    third_prize: { bg: 'bg-orange-600', bgHover: 'hover:bg-orange-500', ring: 'ring-orange-500', text: 'text-orange-400', bgLight: 'bg-orange-900/20', border: 'border-orange-700' },
-  };
-  const colors = typeColorClasses[activeCertType] || typeColorClasses.participation;
+  const activeType = CERTIFICATE_TYPES.find(t => t.id === activeCertType) || CERTIFICATE_TYPES[0];
+  const ActiveTypeIcon = activeType.icon;
+  const activeTemplateReady = Boolean(activeConfig.templateUrl || activeConfig.pdfData);
+  const totalConfiguredTypes = CERTIFICATE_TYPES.filter(type => configs[type.id]?.templateUrl || configs[type.id]?.pdfData).length;
 
   return (
-    <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-white/10 shadow-2xl">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-        <div>
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent flex items-center gap-2">
-            <Award className="text-blue-400" size={24} />
-            Certificate Studio
+    <div className="admin-card overflow-hidden p-0">
+      <div className="border-b border-white/10 bg-[#12100e]/80 p-5 sm:p-6">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+        <div className="max-w-2xl">
+          <p className="admin-eyebrow mb-3">Certificate designer</p>
+          <h2 className="flex items-center gap-3 text-2xl font-black tracking-tight text-[#f7efe3] md:text-3xl">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f2e7d8] text-[#17110d]">
+              <Award size={20} />
+            </span>
+            Certificate templates
           </h2>
-          <p className="text-gray-400 text-sm mt-1">Design and distribute beautiful certificates</p>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-[#aaa096]">Map fields to PDF templates, then issue certificates for this event.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {/* Send Certificates Button */}
           <button
             onClick={() => { setSendingType(activeCertType); setSendModalOpen(true); }}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white rounded-xl transition-all shadow-lg shadow-emerald-500/20 font-medium text-sm"
+            className="flex items-center gap-2 rounded-full border border-[#E23744]/60 bg-[#E23744] px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-[#E23744]/15 transition-all hover:-translate-y-0.5 hover:bg-[#f04552]"
           >
             <Send size={16} />
             <span>Distribute</span>
           </button>
-          <label className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl cursor-pointer transition-all font-medium text-sm">
+          <label className="flex cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-[#f7efe3] transition-all hover:border-[#f2e7d8]/25 hover:bg-white/[0.08]">
             <Upload size={16} />
-            <span>{uploading ? 'Uploading...' : 'Upload Template'}</span>
-            <input 
+            <span>{uploading ? 'Uploading...' : 'Upload PDF'}</span>
+            <input
               ref={fileInputRef}
-              type="file" 
+              type="file"
               accept="application/pdf"
-              className="hidden" 
+              className="hidden"
               onChange={handleFileUpload}
               disabled={uploading}
             />
           </label>
-          <button 
+          <button
             onClick={handleTestCertificate}
             disabled={(!activeConfig.templateUrl && !activeConfig.pdfData) || currentMapping.length === 0}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-medium text-sm ${
+            className={`flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-bold transition-all ${
               (activeConfig.templateUrl || activeConfig.pdfData) && currentMapping.length > 0
-                ? 'bg-white/5 hover:bg-white/10 border border-white/10 text-white' 
-                : 'bg-white/5 border border-white/5 text-gray-500 cursor-not-allowed'
+                ? 'border-white/10 bg-white/[0.04] text-[#f7efe3] hover:border-[#f2e7d8]/25 hover:bg-white/[0.08]'
+                : 'cursor-not-allowed border-white/5 bg-white/[0.03] text-[#716960]'
             }`}
           >
             <Eye size={16} />
             <span>Preview</span>
           </button>
-          <button 
+          <button
             onClick={handleSave}
-            disabled={!activeConfig.pdfData || currentMapping.length === 0}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-medium text-sm shadow-lg ${
-              activeConfig.pdfData && currentMapping.length > 0 
-                ? 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 text-white shadow-blue-500/25' 
-                : 'bg-white/5 border border-white/5 text-gray-500 cursor-not-allowed shadow-none'
+            disabled={(!activeConfig.templateUrl && !activeConfig.pdfData) || currentMapping.length === 0}
+            className={`flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold transition-all ${
+              (activeConfig.templateUrl || activeConfig.pdfData) && currentMapping.length > 0
+                ? 'bg-[#f2e7d8] text-[#17110d] shadow-lg shadow-black/20 hover:-translate-y-0.5 hover:bg-white'
+                : 'cursor-not-allowed border border-white/5 bg-white/[0.03] text-[#716960]'
             }`}
           >
             <Save size={16} />
-            <span>Save Design</span>
+            <span>Save design</span>
           </button>
         </div>
       </div>
+      </div>
 
       {/* Certificate Type Tabs */}
-      <div className="flex flex-wrap gap-2 mb-6 bg-black/20 p-1.5 rounded-2xl border border-white/5">
+      <div className="grid gap-2 p-5 sm:grid-cols-2 sm:p-6 xl:grid-cols-4">
         {CERTIFICATE_TYPES.map(type => {
           const isActive = activeCertType === type.id;
-          const hasConfig = configs[type.id]?.templateUrl;
+          const hasConfig = Boolean(configs[type.id]?.templateUrl || configs[type.id]?.pdfData);
           const Icon = type.icon;
           return (
             <button
               key={type.id}
               onClick={() => { setActiveCertType(type.id); setSelectedFieldId(null); setPdfError(null); }}
-              className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
+              className={`flex min-h-[76px] items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-all ${
                 isActive
-                  ? `${typeColorClasses[type.id].bg} text-white shadow-lg scale-[1.02]`
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  ? 'border-[#f2e7d8]/35 bg-[#f2e7d8] text-[#17110d] shadow-lg shadow-black/20'
+                  : 'border-white/10 bg-white/[0.035] text-[#d9d0c6] hover:border-[#f2e7d8]/25 hover:bg-white/[0.07]'
               }`}
             >
-              <Icon size={16} className={isActive ? 'animate-pulse' : ''} />
-              <span>{type.label}</span>
-              {hasConfig && !isActive && (
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 ml-1 shadow-[0_0_5px_rgba(52,211,153,0.5)]"></span>
+              <span className="flex min-w-0 items-center gap-3">
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${isActive ? 'bg-[#17110d]/10' : 'bg-white/[0.05]'}`}>
+                  <Icon size={17} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-black">{type.label}</span>
+                  <span className={`mt-0.5 block text-xs ${isActive ? 'text-[#4f443a]' : 'text-[#8f867d]'}`}>
+                    {hasConfig ? 'Template ready' : 'No template'}
+                  </span>
+                </span>
+              </span>
+              {hasConfig && (
+                <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${isActive ? 'bg-[#17110d] text-[#f2e7d8]' : 'bg-emerald-500/15 text-emerald-300'}`}>
+                  <Check size={12} />
+                </span>
               )}
             </button>
           );
@@ -473,69 +490,79 @@ export default function CertificateDesigner({ eventId, initialConfig, onSave }) 
       </div>
 
       {/* Type Description */}
-      <div className={`mb-6 px-4 py-3 rounded-xl ${colors.bgLight} border ${colors.border} flex items-center gap-3`}>
-        <div className={`p-2 rounded-lg ${colors.bg} bg-opacity-20`}>
-          {React.createElement(CERTIFICATE_TYPES.find(t => t.id === activeCertType)?.icon || Award, { size: 20, className: colors.text })}
+      <div className="mx-5 mb-5 flex flex-col gap-3 rounded-2xl border border-white/10 bg-[#100e0c]/75 p-4 sm:mx-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.05] text-[#f2e7d8]">
+            <ActiveTypeIcon size={18} />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-[#f7efe3]">{activeType.label}</h3>
+            <p className="text-xs text-[#8f867d]">{activeType.description}</p>
+          </div>
+        </div>
+        <div className="flex gap-2 text-xs font-bold">
+          <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[#aaa096]">{totalConfiguredTypes} configured</span>
+          <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[#aaa096]">{currentMapping.length} placed</span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 gap-5 px-5 pb-5 sm:px-6 sm:pb-6 xl:grid-cols-[290px_minmax(0,1fr)]">
         {/* Sidebar Controls */}
-        <div className="lg:col-span-1 space-y-4">
-          <div className="bg-black/20 p-4 rounded-2xl border border-white/5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-xs font-bold">1</div>
-              <h3 className="text-sm font-semibold text-gray-200">Select Field</h3>
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-white/10 bg-[#100e0c]/75 p-4">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-black text-[#f7efe3]">Fields</h3>
+                <p className="mt-0.5 text-xs text-[#8f867d]">Select one, then click the preview.</p>
+              </div>
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-xs font-bold text-[#aaa096]">
+                {currentMapping.length}/{AVAILABLE_FIELDS.length}
+              </span>
             </div>
             <div className="space-y-2">
               {AVAILABLE_FIELDS.map(field => {
                 const isPlaced = currentMapping.some(m => m.fieldId === field.id);
                 const isSelected = selectedFieldId === field.id;
-                
+
                 return (
                   <button
                     key={field.id}
                     onClick={() => setSelectedFieldId(field.id)}
-                    className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all duration-200 group ${
-                      isSelected 
-                        ? 'bg-blue-500/20 border-blue-500/50 text-blue-300 shadow-[0_0_15px_rgba(59,130,246,0.15)] scale-[1.02]' 
+                    className={`group flex w-full items-center justify-between rounded-xl border p-3 text-left transition-all ${
+                      isSelected
+                        ? 'border-[#E23744]/70 bg-[#E23744]/[0.12] text-[#f7efe3] shadow-[0_0_0_1px_rgba(226,55,68,0.18)]'
                         : isPlaced
-                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                        : 'bg-white/5 border-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                        ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-200'
+                        : 'border-white/10 bg-white/[0.035] text-[#aaa096] hover:border-[#f2e7d8]/20 hover:bg-white/[0.06] hover:text-[#f7efe3]'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <field.icon size={16} className={isSelected ? 'text-blue-400' : isPlaced ? 'text-emerald-400' : 'text-gray-500 group-hover:text-gray-300'} />
-                      <span className="text-sm font-medium">{field.label}</span>
-                    </div>
-                    {isPlaced && <Check size={14} className="text-emerald-400" />}
+                    <span className="flex min-w-0 items-center gap-3">
+                      <field.icon size={16} className={isSelected ? 'text-[#ff6b75]' : isPlaced ? 'text-emerald-300' : 'text-[#756d66] group-hover:text-[#d9d0c6]'} />
+                      <span className="truncate text-sm font-bold">{field.label}</span>
+                    </span>
+                    {isPlaced && <Check size={14} className="shrink-0 text-emerald-300" />}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          <div className="bg-black/20 p-4 rounded-2xl border border-white/5">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 text-xs font-bold">2</div>
-              <h3 className="text-sm font-semibold text-gray-200">Place on PDF</h3>
-            </div>
-            <p className="text-xs text-gray-400 leading-relaxed pl-8">
-              Click anywhere on the certificate preview to place the selected field.
-            </p>
+          <div className="rounded-2xl border border-white/10 bg-[#100e0c]/75 p-4">
+            <h3 className="text-sm font-black text-[#f7efe3]">Placement</h3>
+            <p className="mt-1 text-xs leading-5 text-[#8f867d]">Click anywhere on the PDF preview to position the selected field. Selecting the same field again replaces its old position.</p>
           </div>
 
           {currentMapping.length > 0 && (
-            <div className="bg-black/20 p-4 rounded-2xl border border-white/5">
-               <h3 className="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wider">Placed Fields</h3>
+            <div className="rounded-2xl border border-white/10 bg-[#100e0c]/75 p-4">
+               <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-[#8f867d]">Placed fields</h3>
                <ul className="space-y-2">
                  {currentMapping.map((m, idx) => (
-                   <li key={idx} className="flex justify-between items-center text-sm bg-white/5 border border-white/5 p-2.5 rounded-xl group">
-                     <span className="text-gray-300 flex items-center gap-2">
-                       <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
-                       {getFieldName(m.fieldId)}
+                   <li key={idx} className="group flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.035] p-2.5 text-sm">
+                     <span className="flex min-w-0 items-center gap-2 text-[#d9d0c6]">
+                       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#E23744]"></span>
+                       <span className="truncate font-bold">{getFieldName(m.fieldId)}</span>
                      </span>
-                     <button onClick={() => removeField(m.fieldId)} className="text-gray-500 hover:text-red-400 hover:bg-red-400/10 p-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
+                     <button onClick={() => removeField(m.fieldId)} className="rounded-lg p-1.5 text-[#756d66] transition-colors hover:bg-[#E23744]/10 hover:text-[#ff6b75] sm:opacity-0 sm:group-hover:opacity-100" aria-label={`Remove ${getFieldName(m.fieldId)}`}>
                        <Trash2 size={14} />
                      </button>
                    </li>
@@ -546,45 +573,66 @@ export default function CertificateDesigner({ eventId, initialConfig, onSave }) 
         </div>
 
         {/* PDF Preview Area */}
-        <div className="lg:col-span-3 bg-black/40 rounded-2xl border border-white/10 min-h-[400px] flex items-center justify-center relative overflow-hidden group" ref={containerRef}>
-          {/* Subtle grid background */}
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNSkiLz48L3N2Zz4=')] opacity-50"></div>
-          
+        <div className="min-h-[520px] rounded-2xl border border-white/10 bg-[#090807] p-3 shadow-inner shadow-black/40" ref={containerRef}>
+          <div className="mb-3 flex flex-col gap-2 border-b border-white/10 px-2 pb-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-sm font-black text-[#f7efe3]">Template preview</h3>
+              <p className="text-xs text-[#8f867d]">
+                {selectedFieldId ? `Place ${getFieldName(selectedFieldId)}` : activeTemplateReady ? 'Select a field to edit placements.' : 'Upload a PDF to begin.'}
+              </p>
+            </div>
+            <span className={`w-fit rounded-full border px-3 py-1 text-xs font-bold ${
+              activeTemplateReady
+                ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+                : 'border-white/10 bg-white/[0.035] text-[#8f867d]'
+            }`}>
+              {activeTemplateReady ? 'Template loaded' : 'Waiting for PDF'}
+            </span>
+          </div>
+
+          <div className="flex min-h-[450px] items-center justify-center rounded-xl border border-white/5 bg-[#0c0b0a] p-4">
           {!activeConfig.pdfData && !uploading ? (
-            <div className="text-center z-10 p-8 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm max-w-sm w-full mx-4 transition-transform group-hover:scale-105">
-              <div className="w-16 h-16 bg-blue-500/20 text-blue-400 rounded-2xl flex items-center justify-center mx-auto mb-4 rotate-3 group-hover:rotate-6 transition-transform">
-                <Upload size={32} />
+            <div className="w-full max-w-sm rounded-2xl border border-dashed border-[#f2e7d8]/20 bg-white/[0.035] p-6 text-center">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f2e7d8] text-[#17110d]">
+                <Upload size={22} />
               </div>
-              <h3 className="text-lg font-bold text-white mb-2">Upload Template</h3>
-              <p className="text-sm text-gray-400 mb-6">Upload a PDF template for <strong className="text-gray-200">{CERTIFICATE_TYPES.find(t => t.id === activeCertType)?.label}</strong></p>
-              <button onClick={() => fileInputRef.current?.click()} className="w-full py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-medium transition-colors">
-                Browse Files
+              <h3 className="text-lg font-black text-[#f7efe3]">Upload a PDF template</h3>
+              <p className="mt-2 text-sm leading-6 text-[#aaa096]">Current certificate type: <span className="font-bold text-[#f7efe3]">{activeType.label}</span></p>
+              <button onClick={() => fileInputRef.current?.click()} className="mt-5 w-full rounded-full bg-[#f2e7d8] px-4 py-2.5 text-sm font-black text-[#17110d] transition-colors hover:bg-white">
+                Browse files
               </button>
             </div>
           ) : uploading && !activeConfig.pdfData ? (
-            <div className="text-center z-10">
-              <div className="relative w-16 h-16 mx-auto mb-4">
-                <div className="absolute inset-0 border-4 border-white/10 rounded-full"></div>
-                <div className="absolute inset-0 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
+            <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-white/[0.035] p-6">
+              <div className="mb-4 h-3 w-32 animate-pulse rounded-full bg-white/15"></div>
+              <div className="space-y-3">
+                <div className="h-20 animate-pulse rounded-xl bg-white/10"></div>
+                <div className="h-20 animate-pulse rounded-xl bg-white/[0.07]"></div>
+                <div className="h-20 animate-pulse rounded-xl bg-white/[0.05]"></div>
               </div>
-              <p className="text-blue-400 font-medium animate-pulse">Processing template...</p>
+              <p className="mt-4 text-sm font-bold text-[#d9d0c6]">Processing template...</p>
             </div>
           ) : pdfError ? (
-            <div className="text-center z-10 p-6 bg-red-500/10 border border-red-500/20 rounded-2xl max-w-sm mx-4">
-              <div className="w-12 h-12 bg-red-500/20 text-red-400 rounded-full flex items-center justify-center mx-auto mb-3">
-                <AlertTriangle size={24} />
+            <div className="w-full max-w-md rounded-2xl border border-[#E23744]/25 bg-[#E23744]/10 p-6">
+              <div className="mb-4 flex items-center gap-3 text-[#ff9ca3]">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E23744]/20">
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-[#ffd5d8]">Template preview failed</h3>
+                  <p className="text-sm text-[#ffb3b8]">{pdfError}</p>
+                </div>
               </div>
-              <p className="text-red-300 mb-4">{pdfError}</p>
-              <button 
+              <button
                 onClick={() => fileInputRef.current?.click()}
-                className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-xl transition-colors text-sm font-medium"
+                className="rounded-full border border-[#ff9ca3]/30 bg-[#ff9ca3]/10 px-4 py-2 text-sm font-bold text-[#ffd5d8] transition-colors hover:bg-[#ff9ca3]/20"
               >
-                Try uploading again
+                Replace PDF
               </button>
             </div>
           ) : (
-            <div 
-              className="relative cursor-crosshair z-10 shadow-2xl shadow-black/50 rounded-lg overflow-hidden transition-transform duration-500 hover:scale-[1.01]"
+            <div
+              className="relative z-10 inline-block cursor-crosshair overflow-hidden rounded-md bg-white shadow-2xl shadow-black/50"
               onClick={handlePdfClick}
               style={{ display: 'inline-block' }}
             >
@@ -598,92 +646,92 @@ export default function CertificateDesigner({ eventId, initialConfig, onSave }) 
                   setPdfError('Failed to render PDF. The file may be corrupted.');
                 }}
                 loading={
-                  <div className="flex flex-col items-center justify-center p-12 text-gray-400">
-                    <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-3"></div>
+                  <div className="flex flex-col items-center justify-center p-12 text-[#aaa096]">
+                    <div className="mb-3 h-8 w-8 animate-spin rounded-full border-2 border-[#E23744]/25 border-t-[#E23744]"></div>
                     <span className="text-sm">Rendering PDF...</span>
                   </div>
                 }
-                error={<div className="text-red-400 p-8 bg-red-500/10 rounded-lg">Failed to load PDF preview.</div>}
+                error={<div className="rounded-lg bg-[#E23744]/10 p-8 text-[#ff9ca3]">Failed to load PDF preview.</div>}
               >
-                <Page 
-                  pageNumber={1} 
-                  width={pageWidth > 0 ? Math.min(pageWidth - 48, 800) : 600} 
+                <Page
+                  pageNumber={1}
+                  width={pageWidth > 0 ? Math.max(280, Math.min(pageWidth - 32, 820)) : 600}
                   renderTextLayer={false}
                   renderAnnotationLayer={false}
                   className="bg-white"
                 />
               </Document>
-              
+
               {/* Markers Overlay */}
               {currentMapping.map((m) => (
                 <div
                   key={m.fieldId}
-                  className={`absolute transform -translate-x-1/2 -translate-y-1/2 text-white text-xs px-2.5 py-1.5 rounded-lg shadow-xl pointer-events-none whitespace-nowrap z-10 flex items-center gap-1.5 backdrop-blur-md border border-white/20 ${colors.bg} bg-opacity-90`}
+                  className="pointer-events-none absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 whitespace-nowrap rounded-lg border border-white/20 bg-[#E23744] px-2.5 py-1.5 text-xs text-white shadow-xl"
                   style={{
                     left: `${m.x * 100}%`,
                     top: `${m.y * 100}%`,
                   }}
                 >
-                  <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
-                  <span className="font-medium tracking-wide">{getFieldName(m.fieldId)}</span>
+                  <div className="h-1.5 w-1.5 rounded-full bg-white"></div>
+                  <span className="font-bold">{getFieldName(m.fieldId)}</span>
                   {/* Pointer triangle */}
-                  <div className={`absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 ${colors.bg}`}></div>
+                  <div className="absolute -bottom-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-[#E23744]"></div>
                 </div>
               ))}
-              
+
               {/* Ghost Marker for current selection */}
               {selectedFieldId && (
-                <div className="absolute inset-0 bg-blue-500/5 z-0 pointer-events-none border-2 border-blue-500/30 border-dashed">
-                  <div className="absolute top-4 left-4 bg-blue-500/80 backdrop-blur-sm text-white text-xs px-3 py-1.5 rounded-lg shadow-lg flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-white animate-ping"></div>
-                    Click anywhere to place <strong>{getFieldName(selectedFieldId)}</strong>
+                <div className="pointer-events-none absolute inset-0 z-0 border-2 border-dashed border-[#E23744]/45 bg-[#E23744]/5">
+                  <div className="absolute left-4 top-4 rounded-full bg-[#17110d]/[0.88] px-3 py-1.5 text-xs font-bold text-[#f7efe3] shadow-lg">
+                    Place {getFieldName(selectedFieldId)}
                   </div>
                 </div>
               )}
             </div>
           )}
+          </div>
         </div>
       </div>
 
       {/* Send Certificates Modal */}
       {sendModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-          <div className="bg-gray-900 rounded-3xl p-6 w-full max-w-lg border border-white/10 shadow-2xl transform transition-all">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+          <div className="w-full max-w-lg rounded-[1.65rem] border border-white/10 bg-[#12100e] p-6 shadow-2xl shadow-black/50">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-white flex items-center gap-3">
-                <div className="p-2 bg-blue-500/20 text-blue-400 rounded-xl">
+              <h3 className="text-xl font-black text-[#f7efe3] flex items-center gap-3">
+                <div className="rounded-xl bg-[#f2e7d8] p-2 text-[#17110d]">
                   <Mail size={20} />
                 </div>
                 Distribute Certificates
               </h3>
-              <button onClick={() => { setSendModalOpen(false); setSendEmails(''); }} className="text-gray-500 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-xl">
+              <button onClick={() => { setSendModalOpen(false); setSendEmails(''); }} className="rounded-xl p-2 text-[#8f867d] transition-colors hover:bg-white/[0.06] hover:text-[#f7efe3]">
                 <X size={20} />
               </button>
             </div>
 
             {/* Type Selector */}
             <div className="mb-6">
-              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 block">Select Type to Send</label>
+              <label className="text-xs font-bold uppercase tracking-[0.18em] text-[#8f867d] mb-3 block">Select type to send</label>
               <div className="grid grid-cols-2 gap-3">
                 {CERTIFICATE_TYPES.map(type => {
                   const Icon = type.icon;
-                  const hasConfig = configs[type.id]?.templateUrl;
+                  const hasConfig = Boolean(configs[type.id]?.templateUrl || configs[type.id]?.pdfData);
                   return (
                     <button
                       key={type.id}
                       onClick={() => setSendingType(type.id)}
                       disabled={!hasConfig}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-2xl text-sm font-medium transition-all border ${
+                      className={`flex flex-col items-center gap-2 rounded-2xl border p-4 text-sm font-bold transition-all ${
                         sendingType === type.id
-                          ? `${typeColorClasses[type.id].bg} border-transparent text-white shadow-lg scale-[1.02]`
+                          ? 'border-[#f2e7d8]/35 bg-[#f2e7d8] text-[#17110d] shadow-lg shadow-black/20'
                           : hasConfig
-                          ? 'bg-white/5 border-white/5 text-gray-300 hover:bg-white/10'
-                          : 'bg-black/20 border-white/5 text-gray-600 cursor-not-allowed'
+                          ? 'border-white/10 bg-white/[0.04] text-[#d9d0c6] hover:border-[#f2e7d8]/25 hover:bg-white/[0.07]'
+                          : 'cursor-not-allowed border-white/5 bg-black/20 text-[#5f574f]'
                       }`}
                     >
-                      <Icon size={24} className={sendingType === type.id ? 'text-white' : hasConfig ? 'text-gray-400' : 'text-gray-600'} />
+                      <Icon size={24} />
                       <span>{type.label}</span>
-                      {!hasConfig && <span className="text-[10px] text-red-400/70 bg-red-400/10 px-2 py-0.5 rounded-full mt-1">No template</span>}
+                      {!hasConfig && <span className="mt-1 rounded-full bg-[#E23744]/10 px-2 py-0.5 text-[10px] text-[#ff8f97]">No template</span>}
                     </button>
                   );
                 })}
@@ -691,13 +739,13 @@ export default function CertificateDesigner({ eventId, initialConfig, onSave }) 
             </div>
 
             {/* Info message */}
-            <div className="mb-6 text-sm text-gray-300 bg-blue-500/10 border border-blue-500/20 p-4 rounded-2xl flex gap-3 items-start">
-              <div className="mt-0.5 text-blue-400"><Users size={16} /></div>
+            <div className="mb-6 flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-[#d9d0c6]">
+              <div className="mt-0.5 text-[#f2e7d8]"><Users size={16} /></div>
               <div>
                 {sendingType === 'participation' ? (
-                  <p>This will automatically generate and email participation certificates to <strong className="text-white">all checked-in attendees</strong>.</p>
+                  <p>This will generate participation certificates for <strong className="text-[#f7efe3]">checked-in attendees</strong>.</p>
                 ) : (
-                  <p>Enter the email addresses of the prize recipients below. They will receive the <strong className="text-white">{CERTIFICATE_TYPES.find(t => t.id === sendingType)?.label}</strong> certificate.</p>
+                  <p>Enter recipient emails for the <strong className="text-[#f7efe3]">{CERTIFICATE_TYPES.find(t => t.id === sendingType)?.label}</strong> certificate.</p>
                 )}
               </div>
             </div>
@@ -705,28 +753,28 @@ export default function CertificateDesigner({ eventId, initialConfig, onSave }) 
             {/* Email input for prize certificates */}
             {['first_prize', 'second_prize', 'third_prize'].includes(sendingType) && (
               <div className="mb-6">
-                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 block">Recipient Emails</label>
+                <label className="text-xs font-bold uppercase tracking-[0.18em] text-[#8f867d] mb-3 block">Recipient emails</label>
                 <textarea
-                  className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-white text-sm placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all resize-none"
+                  className="w-full resize-none rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-[#f7efe3] placeholder-[#716960] transition-all focus:border-[#E23744]/70 focus:outline-none focus:ring-2 focus:ring-[#E23744]/20"
                   rows={4}
                   placeholder={"winner@example.com\nrunnerup@example.com"}
                   value={sendEmails}
                   onChange={(e) => setSendEmails(e.target.value)}
                 />
-                <p className="text-xs text-gray-500 mt-2 pl-1">Separate multiple emails with commas or new lines.</p>
+                <p className="mt-2 pl-1 text-xs text-[#8f867d]">Separate multiple emails with commas or new lines.</p>
               </div>
             )}
 
-            <div className="flex gap-3 justify-end pt-2 border-t border-white/5">
+            <div className="flex gap-3 justify-end pt-2 border-t border-white/10">
               <button
                 onClick={() => { setSendModalOpen(false); setSendEmails(''); }}
-                className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-colors font-medium text-sm"
+                className="rounded-full border border-white/10 bg-white/[0.04] px-5 py-2.5 text-sm font-bold text-[#f7efe3] transition-colors hover:bg-white/[0.08]"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSendCertificates}
-                className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 text-white rounded-xl transition-all shadow-lg shadow-blue-500/25 flex items-center gap-2 font-medium text-sm"
+                className="flex items-center gap-2 rounded-full bg-[#E23744] px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-[#E23744]/15 transition-all hover:bg-[#f04552]"
               >
                 <Send size={16} />
                 Send Certificates

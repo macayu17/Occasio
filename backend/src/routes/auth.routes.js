@@ -20,7 +20,7 @@ router.post('/register',
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { name, email, password, role } = req.body;
+      const { name, email, password } = req.body;
 
       // Check if user exists
       const existingUser = await prisma.user.findUnique({
@@ -40,7 +40,7 @@ router.post('/register',
           name,
           email,
           passwordHash,
-          role: role === 'ADMIN' ? 'ADMIN' : 'ORGANIZER'
+          role: 'ORGANIZER'
         },
         select: {
           id: true,

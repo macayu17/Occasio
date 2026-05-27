@@ -1,4 +1,4 @@
-import AWS from 'aws-sdk';
+import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
 const isTruthy = (value) => String(value || '').trim().length > 0;
 
@@ -17,14 +17,27 @@ const getR2Client = () => {
     throw new Error('R2 is not configured');
   }
 
-  return new AWS.S3({
-    accessKeyId: process.env.R2_ACCESS_KEY_ID,
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+  return new S3Client({
     endpoint: process.env.R2_ENDPOINT,
     region: process.env.R2_REGION || 'auto',
-    signatureVersion: 'v4',
-    s3ForcePathStyle: true,
+    forcePathStyle: true,
+    credentials: {
+      accessKeyId: process.env.R2_ACCESS_KEY_ID,
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+    },
   });
+};
+
+const streamToBuffer = async (body) => {
+  if (!body) return null;
+  if (Buffer.isBuffer(body)) return body;
+  if (body instanceof Uint8Array) return Buffer.from(body);
+
+  const chunks = [];
+  for await (const chunk of body) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
 };
 
 const parseR2Ref = (templateRef) => {
@@ -58,12 +71,12 @@ export const uploadBufferToR2 = async ({ buffer, key, contentType = 'application
   const s3 = getR2Client();
   const bucket = process.env.R2_BUCKET;
 
-  await s3.upload({
+  await s3.send(new PutObjectCommand({
     Bucket: bucket,
     Key: key,
     Body: buffer,
     ContentType: contentType,
-  }).promise();
+  }));
 
   return `r2://${bucket}/${key}`;
 };
@@ -75,14 +88,15 @@ export const getR2ObjectBuffer = async (templateRef) => {
   }
 
   const s3 = getR2Client();
-  const object = await s3.getObject({
+  const object = await s3.send(new GetObjectCommand({
     Bucket: parsed.bucket,
     Key: parsed.key,
-  }).promise();
+  }));
 
-  if (!object?.Body) {
+  const buffer = await streamToBuffer(object?.Body);
+  if (!buffer) {
     throw new Error('R2 object has no body');
   }
 
-  return Buffer.isBuffer(object.Body) ? object.Body : Buffer.from(object.Body);
+  return buffer;
 };
