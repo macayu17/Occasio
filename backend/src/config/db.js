@@ -70,14 +70,19 @@ const withLimit = connectionUrl && !connectionUrl.includes('connection_limit')
   ? `${connectionUrl}${connectionUrl.includes('?') ? '&' : '?'}connection_limit=5`
   : connectionUrl;
 
-const prisma = new PrismaClient({
+const prismaOptions = {
   log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-  datasources: {
+};
+
+if (withLimit) {
+  prismaOptions.datasources = {
     db: {
       url: withLimit,
     },
-  },
-});
+  };
+}
+
+const prisma = new PrismaClient(prismaOptions);
 
 // Test connection on startup with retry
 const connectWithRetry = async (retries = 5, delay = 2000) => {
@@ -99,7 +104,11 @@ const connectWithRetry = async (retries = 5, delay = 2000) => {
   }
 };
 
-connectWithRetry();
+if (withLimit) {
+  connectWithRetry();
+} else {
+  console.warn('⚠️ DATABASE_URL is not set - database connection will be skipped until configured');
+}
 
 // Graceful shutdown
 process.on('beforeExit', async () => {
